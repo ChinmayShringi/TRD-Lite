@@ -55,21 +55,36 @@ export interface WpMediaDetails {
 }
 
 /**
- * Featured media can come back as either a real media object or as a
- * WP REST error envelope (`{ code, message, data }`) when the media has
- * been deleted or restricted. Callers should narrow on `source_url`.
+ * Featured media in `_embedded["wp:featuredmedia"][n]` can come back as
+ * either a real media object or as a WP REST error envelope (`{ code,
+ * message, data }`) when the media has been deleted or restricted. We
+ * model this as a discriminated union so callers must explicitly narrow
+ * via the `isMediaSuccess` type guard before reading media fields. This
+ * removes the optional-property soup that the flat shape forced.
  */
-export interface WpMedia {
-  id?: number;
-  source_url?: string;
+export interface WpMediaSuccess {
+  id: number;
+  source_url: string;
   alt_text?: string;
   media_type?: string;
   mime_type?: string;
   media_details?: WpMediaDetails;
-  // Error-envelope shape, when WP could not embed the media:
-  code?: string;
-  message?: string;
+}
+
+export interface WpMediaError {
+  code: string;
+  message: string;
   data?: unknown;
+}
+
+export type WpMedia = WpMediaSuccess | WpMediaError;
+
+/**
+ * Type guard that narrows `WpMedia` to `WpMediaSuccess`. The success
+ * variant always carries `source_url`; the error variant never does.
+ */
+export function isMediaSuccess(m: WpMedia): m is WpMediaSuccess {
+  return "source_url" in m;
 }
 
 export interface WpTerm {
