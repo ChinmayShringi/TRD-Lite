@@ -30,6 +30,7 @@ import {
   terms as termsTable,
   type Author,
   type Media,
+  type SyncRun,
   type Term,
 } from "../db/schema";
 
@@ -350,6 +351,23 @@ export const resolvers = {
         status: latest?.status ?? "idle",
       };
     },
+
+    recentSyncRuns: async (
+      _: unknown,
+      args: { limit?: number | null },
+      ctx: GraphQLContext,
+    ): Promise<SyncRun[]> => {
+      const requested = typeof args.limit === "number" ? args.limit : 20;
+      // Clamp to a sane window so a malformed client cannot ask for the
+      // full sync_runs history in one go.
+      const limit = Math.min(Math.max(requested, 1), 100);
+      const rows = await ctx.db
+        .select()
+        .from(syncRuns)
+        .orderBy(desc(syncRuns.id))
+        .limit(limit);
+      return rows;
+    },
   },
 
   Post: {
@@ -446,6 +464,17 @@ export const resolvers = {
         },
       };
     },
+  },
+
+  SyncRun: {
+    // The DB shape uses nullable defaults for `posts_upserted`, `errors`,
+    // and `status`; the SDL surfaces them as non-null because every real
+    // row has a value. Coerce nulls to safe sentinels here so the
+    // GraphQL engine never has to drop the row entirely on a stale value.
+    id: (parent: SyncRun): string => String(parent.id),
+    postsUpserted: (parent: SyncRun): number => parent.postsUpserted ?? 0,
+    errors: (parent: SyncRun): number => parent.errors ?? 0,
+    status: (parent: SyncRun): string => parent.status ?? "unknown",
   },
 
   Media: {

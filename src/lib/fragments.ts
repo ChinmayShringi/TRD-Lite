@@ -188,6 +188,33 @@ export const SyncBadgeQuery = /* GraphQL */ `
   }
 `;
 
+/**
+ * Sync-visibility query used by both `/sync-status` (public) and
+ * `/admin/sync` (Basic-Auth-protected). Combines the operational
+ * summary with the last N sync_runs rows so each page only needs one
+ * GraphQL round trip.
+ */
+export const SyncVisibilityQuery = /* GraphQL */ `
+  query SyncVisibility($limit: Int!) {
+    syncStatus {
+      lastRunAt
+      lastSuccessAt
+      postCount
+      status
+    }
+    recentSyncRuns(limit: $limit) {
+      id
+      startedAt
+      finishedAt
+      modifiedAfter
+      postsUpserted
+      errors
+      status
+      notes
+    }
+  }
+`;
+
 // ---------- TypeScript shapes returned by the queries above. We hand
 // type these in lieu of graphql-codegen for now; codegen is on the
 // Wave-10 polish list per plan.md section 15.
@@ -251,4 +278,27 @@ export interface PostEdge<T> {
 
 export interface PostConnection<T> {
   edges: PostEdge<T>[];
+}
+
+export interface SyncStatusFields {
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  postCount: number;
+  status: string;
+}
+
+export interface SyncRunFields {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  modifiedAfter: string | null;
+  postsUpserted: number;
+  errors: number;
+  status: string;
+  notes: string | null;
+}
+
+export interface SyncVisibilityData {
+  syncStatus: SyncStatusFields;
+  recentSyncRuns: SyncRunFields[];
 }

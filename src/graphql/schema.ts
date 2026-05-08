@@ -46,6 +46,7 @@ export const typeDefs = /* GraphQL */ `
       after: String
     ): PostConnection!
     syncStatus: SyncStatus!
+    recentSyncRuns(limit: Int = 20): [SyncRun!]!
   }
 
   type Post {
@@ -104,6 +105,17 @@ export const typeDefs = /* GraphQL */ `
     lastSuccessAt: DateTime
     postCount: Int!
     status: String!
+  }
+
+  type SyncRun {
+    id: ID!
+    startedAt: DateTime!
+    finishedAt: DateTime
+    modifiedAfter: DateTime
+    postsUpserted: Int!
+    errors: Int!
+    status: String!
+    notes: String
   }
 
   type PostConnection {
