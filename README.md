@@ -2,7 +2,7 @@
 
 > A small news site built on top of The Real Deal's WordPress REST API. Next.js 15 frontend, GraphQL Yoga API layer, Postgres mirror, cron-based sync.
 
-**Status:** in active scaffolding (Wave 0 complete, Wave 1 in progress).
+**Status:** in active scaffolding (Wave 1 complete, Wave 2 in progress). Foundation is in place; feature waves pending.
 
 ## TL;DR
 
@@ -17,8 +17,8 @@
 ```bash
 pnpm install
 vercel env pull .env.local
-pnpm db:migrate
-pnpm tsx scripts/backfill.ts
+pnpm db:migrate            # (after Wave 2 lands the schema)
+pnpm tsx scripts/backfill.ts  # (after Wave 3 lands sync)
 pnpm dev
 ```
 

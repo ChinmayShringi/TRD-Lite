@@ -1,0 +1,14 @@
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "ignorePatterns": [
+    "node_modules/",
+    ".next/",
+    "out/",
+    "build/",
+    "next-env.d.ts",
+    "drizzle/meta/",
+    "playwright-report/",
+    "test-results/",
+    "coverage/"
+  ]
+}
