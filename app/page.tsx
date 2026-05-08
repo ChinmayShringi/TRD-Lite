@@ -1,65 +1,136 @@
-import Image from "next/image";
+/**
+ * Homepage. Server Component. Fetches the latest 10 published posts
+ * and the full sectors list in one round trip to the in-process Yoga
+ * handler. Renders <ArticleHero> for the first post and a 2/3-column
+ * grid of <ArticleCard> for the remainder.
+ */
+import { ArticleCard } from "@/src/components/ArticleCard";
+import { ArticleHero } from "@/src/components/ArticleHero";
+import { SectorChip } from "@/src/components/SectorChip";
+import {
+  HomePageQuery,
+  type PostCard,
+  type PostConnection,
+  type TermFields,
+} from "@/src/lib/fragments";
+import { gqlFetch } from "@/src/lib/graphql-fetch";
 
-export default function Home() {
+interface HomePageData {
+  posts: PostConnection<PostCard>;
+  sectors: TermFields[];
+}
+
+// The homepage fetches from the in-process Yoga handler at
+// `/api/graphql`. During `next build` the route is not running, so we
+// cannot statically prerender; mark it dynamic and let the Data Cache
+// (5-minute revalidate + tag invalidation) shoulder the caching role
+// at request time. Still cacheable, just at the request-cache layer.
+export const dynamic = "force-dynamic";
+export const revalidate = 60;
+
+const HOMEPAGE_TAGS = ["homepage"];
+
+const FEATURED_SECTOR_SLUGS = [
+  "residential",
+  "commercial",
+  "politics",
+  "technology",
+  "retail",
+  "investment",
+];
+
+export default async function HomePage() {
+  const data = await gqlFetch<HomePageData>(
+    HomePageQuery,
+    { first: 10 },
+    { tags: HOMEPAGE_TAGS, revalidate: 60 },
+  );
+
+  const edges = data.posts.edges;
+  if (edges.length === 0) {
+    return (
+      <section className="mx-auto flex max-w-3xl flex-1 flex-col items-center justify-center px-4 py-24 text-center">
+        <h1 className="font-heading text-3xl font-semibold">
+          No articles yet
+        </h1>
+        <p className="mt-3 text-muted-foreground">
+          The sync pipeline has not produced any posts. Try running{" "}
+          <code className="rounded bg-muted px-1.5 py-0.5 text-sm">
+            pnpm tsx scripts/backfill.ts
+          </code>
+          .
+        </p>
+      </section>
+    );
+  }
+
+  const heroPost = edges[0]?.node;
+  const gridPosts = edges.slice(1).map((e) => e.node);
+
+  // Pick a stable subset of sectors for the chip row. Prefer the
+  // featured slugs in our hardcoded ordering when they exist; fall
+  // through to whatever the schema returned so the chip row never
+  // appears empty even if the canonical sectors are renamed upstream.
+  const sectorBySlug = new Map(data.sectors.map((s) => [s.slug, s] as const));
+  const featuredSectors: TermFields[] = [];
+  for (const slug of FEATURED_SECTOR_SLUGS) {
+    const s = sectorBySlug.get(slug);
+    if (s) featuredSectors.push(s);
+  }
+  if (featuredSectors.length === 0) {
+    featuredSectors.push(...data.sectors.slice(0, 6));
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-10 sm:px-6 lg:py-14">
+      <section aria-labelledby="hero-heading" className="flex flex-col gap-4">
+        <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
+          <h1
+            id="hero-heading"
+            className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+          >
+            Top story
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        </header>
+        {heroPost ? <ArticleHero post={heroPost} /> : null}
+      </section>
+
+      {featuredSectors.length > 0 ? (
+        <section
+          aria-labelledby="sectors-heading"
+          className="flex flex-col gap-3"
+        >
+          <h2
+            id="sectors-heading"
+            className="font-heading text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Browse by sector
+          </h2>
+          <ul className="flex flex-wrap gap-2">
+            {featuredSectors.map((s) => (
+              <li key={s.slug}>
+                <SectorChip slug={s.slug} name={s.name} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section aria-labelledby="latest-heading" className="flex flex-col gap-6">
+        <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
+          <h2
+            id="latest-heading"
+            className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
           >
-            Documentation
-          </a>
+            Latest
+          </h2>
+        </header>
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
+          {gridPosts.map((post) => (
+            <ArticleCard key={post.id} post={post} />
+          ))}
         </div>
-      </main>
+      </section>
     </div>
   );
 }

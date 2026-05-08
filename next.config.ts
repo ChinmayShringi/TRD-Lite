@@ -15,6 +15,19 @@ const nextConfig: NextConfig = {
     "pino-pretty",
     "@neondatabase/serverless",
   ],
+  // Allowlist of remote image origins for next/image. TRD's editorial
+  // images live on therealdeal.com (and a few CDN variants); Gravatar
+  // hosts most author avatars.
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "therealdeal.com" },
+      { protocol: "https", hostname: "*.therealdeal.com" },
+      { protocol: "https", hostname: "static.therealdeal.com" },
+      { protocol: "https", hostname: "secureservercdn.net" },
+      { protocol: "https", hostname: "gravatar.com" },
+      { protocol: "https", hostname: "*.gravatar.com" },
+    ],
+  },
 };
 
 export default nextConfig;
