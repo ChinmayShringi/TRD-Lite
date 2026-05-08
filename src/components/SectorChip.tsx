@@ -14,8 +14,12 @@ export interface SectorChipProps {
   asStatic?: boolean;
 }
 
+// Color choice: small chip text needs to pass WCAG AA (4.5:1) against
+// the 8%-accent background. The default `text-accent` token is too
+// light at 12px regular weight; `text-accent-strong` is a darker
+// variant defined in globals.css purely for this surface.
 const baseClasses =
-  "inline-flex items-center rounded-full border border-accent/20 bg-accent/8 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wider text-accent transition-colors";
+  "inline-flex items-center rounded-full border border-accent/30 bg-accent/8 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wider text-accent-strong transition-colors";
 const hoverClasses =
   "hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2";
 

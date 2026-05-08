@@ -4,6 +4,8 @@
  * handler. Renders <ArticleHero> for the first post and a 2/3-column
  * grid of <ArticleCard> for the remainder.
  */
+import type { Metadata } from "next";
+
 import { ArticleCard } from "@/src/components/ArticleCard";
 import { ArticleHero } from "@/src/components/ArticleHero";
 import { SectorChip } from "@/src/components/SectorChip";
@@ -29,6 +31,27 @@ export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 const HOMEPAGE_TAGS = ["homepage"];
+
+const HOMEPAGE_DESCRIPTION =
+  "A take-home demo: cached mirror of recent posts from The Real Deal.";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "Latest news (demo)",
+    description: HOMEPAGE_DESCRIPTION,
+    openGraph: {
+      title: "TRD News (demo)",
+      description: HOMEPAGE_DESCRIPTION,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "TRD News (demo)",
+      description: HOMEPAGE_DESCRIPTION,
+    },
+    robots: { index: false, follow: false },
+  };
+}
 
 const FEATURED_SECTOR_SLUGS = [
   "residential",

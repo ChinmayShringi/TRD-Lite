@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Source_Serif_4 } from "next/font/google";
 
 import { Footer } from "@/src/components/Footer";
@@ -20,11 +20,19 @@ const sourceSerif = Source_Serif_4({
 
 export const metadata: Metadata = {
   title: {
-    default: "TRD Lite",
-    template: "%s | TRD Lite",
+    default: "TRD News (demo)",
+    template: "%s | TRD News (demo)",
   },
   description:
-    "TRD Lite is a Next.js 15 demo built on top of The Real Deal's WordPress REST API.",
+    "A small news site mirror of The Real Deal, built as a take-home demo. Not affiliated.",
+  // Per-page generateMetadata handlers populate openGraph/twitter so the
+  // root never advertises a wrong default for article pages.
+  robots: { index: false, follow: false },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

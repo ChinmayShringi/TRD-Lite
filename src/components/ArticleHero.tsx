@@ -36,6 +36,11 @@ export function ArticleHero({ post, className }: ArticleHeroProps) {
     >
       <Link
         href={`/article/${post.slug}`}
+        // Image-wrap link has no visible text; the post title here gives
+        // screen-reader and assistive-tech users a meaningful name and
+        // keeps axe-core's `link-name` rule happy.
+        aria-label={post.title}
+        tabIndex={-1}
         className="block overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
         <FeaturedImage

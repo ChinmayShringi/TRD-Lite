@@ -29,7 +29,7 @@ export function Footer() {
         <div className="flex flex-col items-start gap-3 sm:items-end">
           <Suspense
             fallback={
-              <span className="text-xs text-muted-foreground/60">
+              <span className="text-xs text-muted-foreground">
                 checking sync...
               </span>
             }

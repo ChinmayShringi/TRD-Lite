@@ -60,7 +60,7 @@ export async function SyncBadge() {
       />
       <span>
         {indicator}
-        <span className="ml-2 text-muted-foreground/70">
+        <span className="ml-2 text-muted-foreground">
           {status.postCount} posts
         </span>
       </span>

@@ -12,6 +12,7 @@
  * and inject via dangerouslySetInnerHTML; without that the editorial
  * markup (img/figure/blockquote) cannot render.
  */
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ArticleCard } from "@/src/components/ArticleCard";
@@ -26,6 +27,7 @@ import {
   type PostDetail,
 } from "@/src/lib/fragments";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
+import { getPostForMetadata, stripHtml } from "@/src/lib/seo";
 
 interface ArticlePageData {
   post: PostDetail | null;
@@ -42,6 +44,53 @@ export const revalidate = 60;
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: ArticlePageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await getPostForMetadata(slug);
+  if (!post) {
+    return {
+      title: "Article not found",
+      robots: { index: false, follow: false },
+    };
+  }
+  const description = stripHtml(post.excerpt).slice(0, 200);
+  const ogImages = post.featuredMedia
+    ? [
+        {
+          url: post.featuredMedia.url,
+          width: post.featuredMedia.width ?? undefined,
+          height: post.featuredMedia.height ?? undefined,
+        },
+      ]
+    : undefined;
+  return {
+    title: post.title,
+    description,
+    openGraph: {
+      title: post.title,
+      description,
+      type: "article",
+      publishedTime: post.publishedAt,
+      modifiedTime: post.modifiedAt,
+      authors: post.author?.name ? [post.author.name] : undefined,
+      images: ogImages,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description,
+      images: post.featuredMedia ? [post.featuredMedia.url] : undefined,
+    },
+    // Canonical points back to the original TRD URL per plan.md 9.5
+    // SEO #1: this is a demo, the source of truth is upstream, and we
+    // never want Google to index TRD-Lite as a competing copy.
+    alternates: { canonical: post.link },
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
@@ -81,8 +130,39 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // Pre-sanitized at sync time. See src/lib/sanitize.ts and plan.md 9.5.
   const safeHtml = post.contentHtml;
 
+  // JSON-LD NewsArticle for richer SERP entries. Per plan.md 9.5 SEO #2
+  // we expose the structured data on the article page so search
+  // engines, social previews, and AI summarizers see consistent
+  // headline/date/author signals even though the page sets
+  // `robots: noindex` for the demo deployment.
+  const ldJson = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: post.title,
+    image: post.featuredMedia ? [post.featuredMedia.url] : [],
+    datePublished: post.publishedAt,
+    dateModified: post.modifiedAt,
+    author: post.author?.name
+      ? [{ "@type": "Person", name: post.author.name }]
+      : [],
+    publisher: { "@type": "Organization", name: "TRD News (demo)" },
+    mainEntityOfPage: post.link,
+  };
+
   return (
     <article className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
+      <script
+        type="application/ld+json"
+        // Per Next's official JSON-LD guidance, JSON.stringify alone
+        // does not escape the `<` character, so a post title containing
+        // `</script>` (or any `<...>` sequence) could break out of the
+        // script element. Replacing `<` with its unicode escape
+        // `<` neutralizes that XSS vector while keeping the JSON
+        // semantically identical for parsers.
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(ldJson).replace(/</g, "\\u003c"),
+        }}
+      />
       <header className="flex flex-col gap-5">
         {primarySector ? (
           <div>

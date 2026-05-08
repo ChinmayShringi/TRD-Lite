@@ -3,6 +3,7 @@
  * The page title resolves from the first returned post's matching
  * sector entry so we do not need a separate `term(slug)` query.
  */
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ArticleCard } from "@/src/components/ArticleCard";
@@ -12,6 +13,10 @@ import {
   type PostConnection,
 } from "@/src/lib/fragments";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
+import {
+  getSectorNameForMetadata,
+  humanizeSlug,
+} from "@/src/lib/seo";
 
 interface SectorPageData {
   postsByTerm: PostConnection<PostCard>;
@@ -24,6 +29,30 @@ export const revalidate = 60;
 
 interface SectorPageProps {
   params: Promise<{ slug: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: SectorPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const resolvedName = await getSectorNameForMetadata(slug);
+  const name = resolvedName ?? humanizeSlug(slug);
+  const description = `Posts in the ${name} sector (demo).`;
+  return {
+    title: `Sector: ${name}`,
+    description,
+    openGraph: {
+      title: `${name} | TRD News (demo)`,
+      description,
+      type: "website",
+    },
+    twitter: {
+      card: "summary",
+      title: `${name} | TRD News (demo)`,
+      description,
+    },
+    robots: { index: false, follow: false },
+  };
 }
 
 export default async function SectorPage({ params }: SectorPageProps) {
