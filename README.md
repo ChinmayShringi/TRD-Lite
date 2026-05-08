@@ -1,5 +1,7 @@
 # TRD Lite
 
+[![CI](https://github.com/ChinmayShringi/TRD-Lite/actions/workflows/ci.yml/badge.svg)](https://github.com/ChinmayShringi/TRD-Lite/actions/workflows/ci.yml)
+
 > A small news site built on top of The Real Deal's WordPress REST API. Next.js 15 frontend, GraphQL Yoga API layer, Postgres mirror, cron-based sync.
 
 **Status:** in active scaffolding (Wave 1 complete, Wave 2 in progress). Foundation is in place; feature waves pending.
