@@ -16,6 +16,7 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import ws from "ws";
 
+import { fetchOgImage, type OgImageResult } from "./og-image";
 import { sanitizeArticleHtml } from "./sanitize";
 import { decodeText, stripAndDecode } from "./text";
 import {
@@ -112,6 +113,85 @@ function collectMedia(allPosts: WpPost[]): WpMediaSuccess[] {
   return Array.from(byId.values());
 }
 
+/**
+ * Builds a synthetic `WpMediaSuccess`-shaped object from an og:image
+ * scrape so it can flow through the existing `media` upsert path with
+ * no special casing. The `id` is the WP `featured_media` numeric id WP
+ * told us about even though WP itself refuses to serve the row; reusing
+ * that id keeps the FK from `posts.featured_media_id` intact and makes
+ * the fallback transparent to the GraphQL/UI layer.
+ */
+function ogImageToSynthetic(
+  id: number,
+  og: OgImageResult,
+): WpMediaSuccess {
+  return {
+    id,
+    source_url: og.url,
+    alt_text: og.alt ?? undefined,
+    media_details: {
+      width: og.width ?? undefined,
+      height: og.height ?? undefined,
+      sizes: {},
+    },
+  };
+}
+
+/**
+ * For each post whose `featured_media` id was not delivered by the WP
+ * embed, scrape the canonical post URL once and turn the og:image into
+ * a synthetic media row. Concurrency is capped so a page of 100 posts
+ * cannot fan out into 100 simultaneous outbound HTTP connections.
+ */
+async function fetchOgImageFallbacks(
+  pageData: WpPost[],
+  knownMediaIds: ReadonlySet<number>,
+  concurrency = 5,
+): Promise<WpMediaSuccess[]> {
+  type PendingPost = { id: number; mediaId: number; link: string };
+  const dedupedById = new Map<number, PendingPost>();
+  for (const p of pageData) {
+    if (
+      p.featured_media > 0 &&
+      !knownMediaIds.has(p.featured_media) &&
+      typeof p.link === "string" &&
+      p.link.length > 0
+    ) {
+      // First post wins for a shared restricted media id; later posts
+      // reuse the same scrape result via `knownMediaIds` membership in
+      // the caller.
+      if (!dedupedById.has(p.featured_media)) {
+        dedupedById.set(p.featured_media, {
+          id: p.id,
+          mediaId: p.featured_media,
+          link: p.link,
+        });
+      }
+    }
+  }
+  const pending = Array.from(dedupedById.values());
+  if (pending.length === 0) return [];
+
+  const out: WpMediaSuccess[] = [];
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (cursor < pending.length) {
+      const idx = cursor;
+      cursor += 1;
+      const item = pending[idx];
+      if (!item) continue;
+      const og = await fetchOgImage(item.link);
+      if (og) out.push(ogImageToSynthetic(item.mediaId, og));
+    }
+  }
+  const workers = Array.from(
+    { length: Math.min(concurrency, pending.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return out;
+}
+
 function collectAuthors(allPosts: WpPost[]): WpUser[] {
   const byId = new Map<number, WpUser>();
   for (const post of allPosts) {
@@ -183,14 +263,32 @@ export async function upsertPage(
   const ownsHandle = handle === undefined;
   const localHandle = handle ?? buildSyncDb();
 
+  // Collect media from the embed payload first, then fill any gaps via
+  // og:image scraping. Both happen BEFORE we open the DB transaction so
+  // network latency never holds a Postgres row lock.
+  const embedMedia = collectMedia(pageData);
+  const embedKnownIds = new Set(embedMedia.map((m) => m.id));
+  const ogFallbackMedia = await fetchOgImageFallbacks(
+    pageData,
+    embedKnownIds,
+  );
+  // Merge keeping the embed item if both sources resolve to the same id
+  // (embed has full size variants; og:image only has `full`).
+  const mediaItems: WpMediaSuccess[] = [...embedMedia];
+  const seenMediaIds = new Set(embedKnownIds);
+  for (const m of ogFallbackMedia) {
+    if (!seenMediaIds.has(m.id)) {
+      mediaItems.push(m);
+      seenMediaIds.add(m.id);
+    }
+  }
+
   try {
     await localHandle.db.transaction(async (tx) => {
-      const mediaItems = collectMedia(pageData);
-      // Set of media IDs we successfully collected from the embed.
-      // Posts whose `featured_media` does not appear here (because the
-      // media was deleted/restricted upstream and WP returned an error
-      // envelope) get `null` to avoid FK violations.
-      const knownMediaIds = new Set(mediaItems.map((m) => m.id));
+      // Set of media IDs we successfully collected (embed + og:image
+      // fallback). Posts whose `featured_media` does not appear here
+      // get `null` on `featured_media_id` to avoid FK violations.
+      const knownMediaIds = seenMediaIds;
       const knownAuthorIds = new Set<number>();
       if (mediaItems.length > 0) {
         await tx

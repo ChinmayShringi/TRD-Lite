@@ -267,6 +267,11 @@ interface PostConnection {
   pageInfo: { hasNextPage: boolean; endCursor: string | null };
 }
 
+interface SearchPostConnection {
+  edges: { cursor: string; node: PostShape; headline: string }[];
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+}
+
 // ---------- Resolvers ----------
 
 export const resolvers = {
@@ -375,31 +380,52 @@ export const resolvers = {
       _: unknown,
       args: { query: string; first?: number; after?: string | null },
       ctx: GraphQLContext,
-    ): Promise<PostConnection> => {
+    ): Promise<SearchPostConnection> => {
       const trimmed = (args.query ?? "").trim();
-      if (trimmed.length === 0) return emptyConnection();
+      if (trimmed.length === 0) {
+        return { edges: [], pageInfo: { hasNextPage: false, endCursor: null } };
+      }
       const first = clampFirst(args.first ?? 10);
       const offset = args.after ? decodeSearchCursor(args.after) : 0;
 
-      // Step 1: ranked id list. We pull `first + 1` to detect
-      // hasNextPage cheaply. The neon-http driver's `db.execute()`
-      // returns a pg-style result object, so we read `.rows`.
+      // Step 1: ranked id list + a ts_headline snippet per row. The
+      // headline corpus strips HTML tags out of `content_html` (a
+      // regexp_replace, not a true parse) before concatenating with
+      // `excerpt`, so the highlighted output never includes orphaned
+      // tag fragments. ts_headline produces text with `<mark>...</mark>`
+      // wrappers that the UI renders inline. The neon-http driver
+      // returns pg-style results; we read `.rows`.
       const rankedResult = (await ctx.db.execute(sql`
-        SELECT id, ts_rank(search_vector, plainto_tsquery('english', ${trimmed})) AS rank
+        SELECT
+          id,
+          ts_rank(search_vector, plainto_tsquery('english', ${trimmed})) AS rank,
+          ts_headline(
+            'english',
+            coalesce(excerpt, '') || ' ' || regexp_replace(coalesce(content_html, ''), '<[^>]+>', ' ', 'g'),
+            plainto_tsquery('english', ${trimmed}),
+            'StartSel="<mark>", StopSel="</mark>", MaxWords=24, MinWords=10, ShortWord=2, MaxFragments=1, FragmentDelimiter=" ... "'
+          ) AS headline
         FROM posts
         WHERE status = 'publish'
           AND search_vector @@ plainto_tsquery('english', ${trimmed})
         ORDER BY rank DESC, id DESC
         LIMIT ${first + 1}
         OFFSET ${offset}
-      `)) as unknown as { rows: { id: number | string; rank: number }[] };
+      `)) as unknown as {
+        rows: { id: number | string; rank: number; headline: string | null }[];
+      };
       const rankedRows = rankedResult.rows ?? [];
 
       const hasNextPage = rankedRows.length > first;
       const sliced = hasNextPage ? rankedRows.slice(0, first) : rankedRows;
-      if (sliced.length === 0) return emptyConnection();
+      if (sliced.length === 0) {
+        return { edges: [], pageInfo: { hasNextPage: false, endCursor: null } };
+      }
 
       const orderedIds = sliced.map((r) => Number(r.id));
+      const headlineById = new Map<number, string>(
+        sliced.map((r) => [Number(r.id), r.headline ?? ""] as const),
+      );
 
       // Step 2: hydrate via the relational query so author/media/terms
       // come back in the same shape every other resolver returns.
@@ -422,8 +448,10 @@ export const resolvers = {
       const edges = ordered.map((row, idx) => ({
         cursor: encodeSearchCursor(offset + idx + 1),
         node: mapPost(row),
+        headline: headlineById.get(row.id) ?? "",
       }));
-      const endCursor = edges.length > 0 ? edges[edges.length - 1]?.cursor ?? null : null;
+      const endCursor =
+        edges.length > 0 ? edges[edges.length - 1]?.cursor ?? null : null;
       return {
         edges,
         pageInfo: {

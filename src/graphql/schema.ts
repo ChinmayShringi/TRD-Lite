@@ -49,14 +49,17 @@ export const typeDefs = /* GraphQL */ `
     Postgres FTS over title + excerpt + content_html. Blank query
     returns an empty connection (no error). Cursor pagination is
     rank-then-id ordered: \`after\` is an opaque numeric offset so the
-    next page picks up immediately after the prior end. See
-    plan.md section 15 #2 and drizzle/0001_search_vector.sql.
+    next page picks up immediately after the prior end. Each edge
+    carries a \`headline\` snippet computed by Postgres ts_headline so
+    callers can surface the matching context without re-running
+    highlighting client-side. See plan.md section 15 #2 and
+    drizzle/0001_search_vector.sql.
     """
     searchPosts(
       query: String!
       first: Int = 10
       after: String
-    ): PostConnection!
+    ): SearchPostConnection!
     syncStatus: SyncStatus!
     recentSyncRuns(limit: Int = 20): [SyncRun!]!
   }
@@ -138,6 +141,24 @@ export const typeDefs = /* GraphQL */ `
   type PostEdge {
     cursor: String!
     node: Post!
+  }
+
+  """
+  Edge variant returned by \`searchPosts\`. Carries a \`headline\` snippet
+  with HTML \`<mark>\` tags so the UI can render the matching context
+  inline. The snippet is produced by Postgres ts_headline on
+  plain-text input (the resolver strips HTML tags before passing to
+  ts_headline), so it never carries script payloads from upstream.
+  """
+  type SearchPostEdge {
+    cursor: String!
+    node: Post!
+    headline: String!
+  }
+
+  type SearchPostConnection {
+    edges: [SearchPostEdge!]!
+    pageInfo: PageInfo!
   }
 
   type PageInfo {

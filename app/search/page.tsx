@@ -17,7 +17,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ArticleCard } from "@/src/components/ArticleCard";
+import { SearchResultCard } from "@/src/components/SearchResultCard";
 import {
   SearchPostsQuery,
   type SearchPostsData,
@@ -125,7 +125,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3"
         >
           {edges.map((edge) => (
-            <ArticleCard key={edge.node.id} post={edge.node} />
+            <SearchResultCard
+              key={edge.node.id}
+              post={edge.node}
+              headline={edge.headline}
+              query={rawQuery}
+            />
           ))}
         </section>
       ) : null}

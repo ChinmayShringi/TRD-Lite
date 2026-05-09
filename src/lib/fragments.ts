@@ -180,14 +180,17 @@ export const SectorPageQuery = /* GraphQL */ `
 /**
  * Search query backing `/search?q=`. Returns the same `PostCard`
  * fragment as the homepage / sector pages so result rows can render
- * via the existing `<ArticleCard>`. Pagination is offset-based; see
- * the resolver in `src/graphql/resolvers.ts` for why.
+ * via the existing `<ArticleCard>`. Each edge also carries a
+ * `headline` snippet built by Postgres ts_headline so the UI can show
+ * where the query matched in the body. Pagination is offset-based;
+ * see the resolver in `src/graphql/resolvers.ts` for why.
  */
 export const SearchPostsQuery = /* GraphQL */ `
   query SearchPosts($query: String!, $first: Int!, $after: String) {
     searchPosts(query: $query, first: $first, after: $after) {
       edges {
         cursor
+        headline
         node {
           ...PostCard
         }
@@ -312,8 +315,15 @@ export interface PostConnection<T> {
 }
 
 /** Shape returned by `SearchPostsQuery`. */
+export interface SearchEdge {
+  cursor: string;
+  headline: string;
+  node: PostCard;
+}
+
 export interface SearchPostsData {
-  searchPosts: PostConnection<PostCard> & {
+  searchPosts: {
+    edges: SearchEdge[];
     pageInfo: {
       hasNextPage: boolean;
       endCursor: string | null;

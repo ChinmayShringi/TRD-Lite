@@ -67,7 +67,7 @@ export type SearchPostsQueryVariables = Exact<{
 }>;
 
 
-export type SearchPostsQuery = { searchPosts: { edges: Array<{ cursor: string, node: { id: string, slug: string, title: string, excerpt: string, publishedAt: string, link: string, author: { id: string, slug: string, name: string, avatarUrl: string | null } | null, featuredMedia: { id: string, url: string, alt: string | null, width: number | null, height: number | null, sizes: Array<{ name: string, url: string, width: number, height: number }> } | null, sectors: Array<{ id: string, slug: string, name: string, taxonomy: Taxonomy }> } }>, pageInfo: { hasNextPage: boolean, endCursor: string | null } } };
+export type SearchPostsQuery = { searchPosts: { edges: Array<{ cursor: string, headline: string, node: { id: string, slug: string, title: string, excerpt: string, publishedAt: string, link: string, author: { id: string, slug: string, name: string, avatarUrl: string | null } | null, featuredMedia: { id: string, url: string, alt: string | null, width: number | null, height: number | null, sizes: Array<{ name: string, url: string, width: number, height: number }> } | null, sectors: Array<{ id: string, slug: string, name: string, taxonomy: Taxonomy }> } }>, pageInfo: { hasNextPage: boolean, endCursor: string | null } } };
 
 export type SyncBadgeQueryVariables = Exact<{ [key: string]: never; }>;
 
