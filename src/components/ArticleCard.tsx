@@ -58,10 +58,10 @@ export function ArticleCard({ post, className }: ArticleCardProps) {
             <SectorChip slug={primarySector.slug} name={primarySector.name} />
           </div>
         ) : null}
-        <h3 className="font-heading text-xl font-semibold leading-snug tracking-tight text-foreground">
+        <h3 className="line-clamp-2 font-heading text-xl font-semibold leading-snug tracking-tight text-foreground">
           <Link
             href={`/article/${post.slug}`}
-            className="line-clamp-2 transition-colors focus-visible:outline-none focus-visible:underline"
+            className="transition-colors focus-visible:outline-none focus-visible:underline"
           >
             {title}
           </Link>

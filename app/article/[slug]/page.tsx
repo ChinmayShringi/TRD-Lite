@@ -192,15 +192,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       {related.length > 0 ? (
         <aside
           aria-labelledby="related-heading"
-          className="mt-8 flex flex-col gap-6 border-t border-border pt-10"
+          className="mt-12 flex flex-col gap-6"
         >
-          <h2
-            id="related-heading"
-            className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
-          >
-            Related stories
-          </h2>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
+            <h2
+              id="related-heading"
+              className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+            >
+              Read more
+            </h2>
+          </header>
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((p) => (
               <ArticleCard key={p.id} post={p} />
             ))}
