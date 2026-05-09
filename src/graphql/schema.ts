@@ -45,6 +45,18 @@ export const typeDefs = /* GraphQL */ `
       first: Int = 10
       after: String
     ): PostConnection!
+    """
+    Postgres FTS over title + excerpt + content_html. Blank query
+    returns an empty connection (no error). Cursor pagination is
+    rank-then-id ordered: \`after\` is an opaque numeric offset so the
+    next page picks up immediately after the prior end. See
+    plan.md section 15 #2 and drizzle/0001_search_vector.sql.
+    """
+    searchPosts(
+      query: String!
+      first: Int = 10
+      after: String
+    ): PostConnection!
     syncStatus: SyncStatus!
     recentSyncRuns(limit: Int = 20): [SyncRun!]!
   }

@@ -34,6 +34,41 @@ import {
   type Term,
 } from "../db/schema";
 
+// `searchPosts` uses an offset-based cursor instead of the keyset
+// `(publishedAt, id)` cursor used elsewhere. Reason: results are
+// ordered by `ts_rank`, which is not a stable column we can compare
+// across pages (rank is computed per-query on the same plainto_tsquery
+// input, and floating-point precision makes a tuple-cursor brittle).
+// Offset is fine for a search surface where users rarely paginate
+// past the first few pages and never bookmark deep links. See plan.md
+// section 15 #2 honest accounting.
+function encodeSearchCursor(offset: number): string {
+  return Buffer.from(`offset|${offset}`, "utf-8").toString("base64");
+}
+
+function decodeSearchCursor(cursor: string): number {
+  let raw: string;
+  try {
+    raw = Buffer.from(cursor, "base64").toString("utf-8");
+  } catch {
+    throw new GraphQLError("decodeSearchCursor: not valid base64", {
+      extensions: { code: "BAD_CURSOR_INPUT" },
+    });
+  }
+  if (!raw.startsWith("offset|")) {
+    throw new GraphQLError("decodeSearchCursor: missing offset prefix", {
+      extensions: { code: "BAD_CURSOR_INPUT" },
+    });
+  }
+  const n = Number.parseInt(raw.slice("offset|".length), 10);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new GraphQLError("decodeSearchCursor: invalid offset value", {
+      extensions: { code: "BAD_CURSOR_INPUT" },
+    });
+  }
+  return n;
+}
+
 // ---------- Local row shapes returned by Drizzle relational queries.
 // We avoid importing `db.query.*` types directly because Drizzle's
 // inferred relational result types are noisy; defining the relevant
@@ -318,6 +353,84 @@ export const resolvers = {
         { first: args.first ?? 10, after: args.after },
         { taxonomy: dbTaxonomy, slug: args.slug },
       );
+    },
+
+    /**
+     * Postgres FTS over the generated `search_vector` column. Two SQL
+     * statements: (1) rank-then-id ordered ID list with offset/limit,
+     * (2) one relational hydration that pulls authors/media/terms in
+     * one go. Re-orders the hydrated rows by the rank order from step
+     * (1) so ts_rank decides edge order, not Drizzle's join planner.
+     *
+     * Empty / whitespace-only `query` returns an empty connection
+     * without ever touching SQL: WP search UIs commonly send `?q=`
+     * during typeahead and we should not treat that as an error.
+     *
+     * `args.query` is interpolated via Drizzle's `sql` template so it
+     * is parameter-bound (no string concatenation). `plainto_tsquery`
+     * is the right entry point for user input: it tolerates arbitrary
+     * text where `to_tsquery` would throw on operators or punctuation.
+     */
+    searchPosts: async (
+      _: unknown,
+      args: { query: string; first?: number; after?: string | null },
+      ctx: GraphQLContext,
+    ): Promise<PostConnection> => {
+      const trimmed = (args.query ?? "").trim();
+      if (trimmed.length === 0) return emptyConnection();
+      const first = clampFirst(args.first ?? 10);
+      const offset = args.after ? decodeSearchCursor(args.after) : 0;
+
+      // Step 1: ranked id list. We pull `first + 1` to detect
+      // hasNextPage cheaply. The neon-http driver's `db.execute()`
+      // returns a pg-style result object, so we read `.rows`.
+      const rankedResult = (await ctx.db.execute(sql`
+        SELECT id, ts_rank(search_vector, plainto_tsquery('english', ${trimmed})) AS rank
+        FROM posts
+        WHERE status = 'publish'
+          AND search_vector @@ plainto_tsquery('english', ${trimmed})
+        ORDER BY rank DESC, id DESC
+        LIMIT ${first + 1}
+        OFFSET ${offset}
+      `)) as unknown as { rows: { id: number | string; rank: number }[] };
+      const rankedRows = rankedResult.rows ?? [];
+
+      const hasNextPage = rankedRows.length > first;
+      const sliced = hasNextPage ? rankedRows.slice(0, first) : rankedRows;
+      if (sliced.length === 0) return emptyConnection();
+
+      const orderedIds = sliced.map((r) => Number(r.id));
+
+      // Step 2: hydrate via the relational query so author/media/terms
+      // come back in the same shape every other resolver returns.
+      const rows = (await ctx.db.query.posts.findMany({
+        where: inArray(postsTable.id, orderedIds),
+        with: {
+          author: true,
+          featuredMedia: true,
+          terms: { with: { term: true } },
+        },
+      })) as unknown as PostRowWithRelations[];
+
+      // Re-sort hydrated rows back into rank order (Drizzle's `where
+      // in` does not preserve list order).
+      const byId = new Map(rows.map((r) => [r.id, r] as const));
+      const ordered = orderedIds
+        .map((id) => byId.get(id))
+        .filter((r): r is PostRowWithRelations => r !== undefined);
+
+      const edges = ordered.map((row, idx) => ({
+        cursor: encodeSearchCursor(offset + idx + 1),
+        node: mapPost(row),
+      }));
+      const endCursor = edges.length > 0 ? edges[edges.length - 1]?.cursor ?? null : null;
+      return {
+        edges,
+        pageInfo: {
+          hasNextPage,
+          endCursor,
+        },
+      };
     },
 
     syncStatus: async (

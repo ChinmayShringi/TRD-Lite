@@ -10,6 +10,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   bigserial,
+  customType,
   index,
   integer,
   jsonb,
@@ -19,6 +20,19 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+/**
+ * Custom Drizzle type for Postgres `tsvector`. Drizzle does not ship a
+ * built-in tsvector helper as of v0.45, so we declare one here. The
+ * column itself is generated and STORED at the SQL level (see
+ * `drizzle/0001_search_vector.sql`); we only need Drizzle to know it
+ * exists so it appears on `Post`'s inferred row type.
+ */
+const tsvector = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
 
 /**
  * `posts` mirrors WordPress posts. `raw` keeps the original payload so we
@@ -48,6 +62,12 @@ export const posts = pgTable(
     syncedAt: timestamp("synced_at", { withTimezone: true })
       .notNull()
       .default(sql`now()`),
+    // Generated STORED tsvector. Maintained automatically by Postgres
+    // from `coalesce(title,'') || ' ' || coalesce(excerpt,'') || ' ' ||
+    // coalesce(content_html,'')`. We never write to it directly. See
+    // `drizzle/0001_search_vector.sql` for the generated-expression
+    // definition and the GIN index that backs `searchPosts`.
+    searchVector: tsvector("search_vector"),
   },
   (table) => [
     index("posts_published_at_idx").on(table.publishedAt.desc()),

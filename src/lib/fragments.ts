@@ -177,6 +177,33 @@ export const SectorPageQuery = /* GraphQL */ `
   ${TermFieldsFragment}
 `;
 
+/**
+ * Search query backing `/search?q=`. Returns the same `PostCard`
+ * fragment as the homepage / sector pages so result rows can render
+ * via the existing `<ArticleCard>`. Pagination is offset-based; see
+ * the resolver in `src/graphql/resolvers.ts` for why.
+ */
+export const SearchPostsQuery = /* GraphQL */ `
+  query SearchPosts($query: String!, $first: Int!, $after: String) {
+    searchPosts(query: $query, first: $first, after: $after) {
+      edges {
+        cursor
+        node {
+          ...PostCard
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+  ${PostCardFragment}
+  ${AuthorFieldsFragment}
+  ${MediaFieldsFragment}
+  ${TermFieldsFragment}
+`;
+
 /** Footer SyncBadge query: returns the last successful sync timestamp. */
 export const SyncBadgeQuery = /* GraphQL */ `
   query SyncBadge {
@@ -278,6 +305,20 @@ export interface PostEdge<T> {
 
 export interface PostConnection<T> {
   edges: PostEdge<T>[];
+  pageInfo?: {
+    hasNextPage: boolean;
+    endCursor: string | null;
+  };
+}
+
+/** Shape returned by `SearchPostsQuery`. */
+export interface SearchPostsData {
+  searchPosts: PostConnection<PostCard> & {
+    pageInfo: {
+      hasNextPage: boolean;
+      endCursor: string | null;
+    };
+  };
 }
 
 export interface SyncStatusFields {
