@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ArticleBrief } from "./ArticleBrief";
 import { ArticleCard } from "./ArticleCard";
 import { ArticleCardSkeleton } from "./ArticleCardSkeleton";
 import type { PostCard } from "@/src/lib/fragments";
@@ -49,6 +50,13 @@ export interface InfiniteArticleListProps {
   query: string;
   /** Page size to request per fetch (default 12). */
   pageSize?: number;
+  /**
+   * "card" → 3-col grid of image cards (existing behavior).
+   * "brief" → single-column text-only list (homepage "More stories"
+   *   tier). Skeletons hide in brief mode because the row geometry
+   *   isn't expensive to settle.
+   */
+  variant?: "card" | "brief";
 }
 
 const SKELETON_COUNT = 6;
@@ -59,6 +67,7 @@ export function InfiniteArticleList({
   initialEndCursor,
   query,
   pageSize = 12,
+  variant = "card",
 }: InfiniteArticleListProps) {
   const [edges, setEdges] = useState<InfiniteEdge[]>(initialEdges);
   const [endCursor, setEndCursor] = useState<string | null>(
@@ -131,19 +140,32 @@ export function InfiniteArticleList({
 
   return (
     <div className="flex flex-col gap-8">
-      <div
-        className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3"
-        aria-busy={loading}
-      >
-        {edges.map((edge) => (
-          <ArticleCard key={edge.node.id} post={edge.node} />
-        ))}
-        {loading
-          ? Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
-              <ArticleCardSkeleton key={`skeleton-${idx}`} />
-            ))
-          : null}
-      </div>
+      {variant === "card" ? (
+        <div
+          className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3"
+          aria-busy={loading}
+        >
+          {edges.map((edge) => (
+            <ArticleCard key={edge.node.id} post={edge.node} />
+          ))}
+          {loading
+            ? Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+                <ArticleCardSkeleton key={`skeleton-${idx}`} />
+              ))
+            : null}
+        </div>
+      ) : (
+        <div className="flex flex-col" aria-busy={loading}>
+          {edges.map((edge) => (
+            <ArticleBrief key={edge.node.id} post={edge.node} />
+          ))}
+          {loading ? (
+            <p className="border-b border-border py-5 text-sm text-muted-foreground">
+              Loading more stories...
+            </p>
+          ) : null}
+        </div>
+      )}
 
       {hasNextPage ? (
         <div

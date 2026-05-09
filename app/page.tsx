@@ -6,6 +6,7 @@
  */
 import type { Metadata } from "next";
 
+import { ArticleCard } from "@/src/components/ArticleCard";
 import { ArticleHero } from "@/src/components/ArticleHero";
 import { InfiniteArticleList } from "@/src/components/InfiniteArticleList";
 import { SectorChip } from "@/src/components/SectorChip";
@@ -100,7 +101,13 @@ export default async function HomePage() {
   }
 
   const heroPost = edges[0]?.node;
-  const initialGridEdges = edges.slice(1);
+  // Front-page tiers: hero anchors the page, two "lead" cards sit
+  // below it as the second-tier stories, and the rest fall into the
+  // dense "More stories" brief list. The split lives here (rather
+  // than in InfiniteArticleList) so the server-rendered first paint
+  // already shows the editorial hierarchy without a flicker.
+  const leadEdges = edges.slice(1, 3);
+  const briefEdges = edges.slice(3);
   const initialEndCursor = data.posts.pageInfo?.endCursor ?? null;
   const initialHasNextPage = data.posts.pageInfo?.hasNextPage ?? false;
 
@@ -132,10 +139,31 @@ export default async function HomePage() {
         {heroPost ? <ArticleHero post={heroPost} /> : null}
       </section>
 
+      {leadEdges.length > 0 ? (
+        <section
+          aria-labelledby="leads-heading"
+          className="flex flex-col gap-6"
+        >
+          <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
+            <h2
+              id="leads-heading"
+              className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+            >
+              Lead stories
+            </h2>
+          </header>
+          <div className="grid gap-10 sm:grid-cols-2">
+            {leadEdges.map((edge) => (
+              <ArticleCard key={edge.node.id} post={edge.node} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {featuredSectors.length > 0 ? (
         <section
           aria-labelledby="sectors-heading"
-          className="flex flex-col gap-3"
+          className="flex flex-col gap-3 border-y border-border py-4"
         >
           <h2
             id="sectors-heading"
@@ -143,7 +171,7 @@ export default async function HomePage() {
           >
             Browse by sector
           </h2>
-          <ul className="flex flex-wrap gap-2">
+          <ul className="flex flex-wrap gap-x-6 gap-y-2">
             {featuredSectors.map((s) => (
               <li key={s.slug}>
                 <SectorChip slug={s.slug} name={s.name} />
@@ -153,20 +181,21 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <section aria-labelledby="latest-heading" className="flex flex-col gap-6">
+      <section aria-labelledby="latest-heading" className="flex flex-col gap-4">
         <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
           <h2
             id="latest-heading"
             className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
           >
-            Latest
+            More stories
           </h2>
         </header>
         <InfiniteArticleList
-          initialEdges={initialGridEdges}
+          initialEdges={briefEdges}
           initialHasNextPage={initialHasNextPage}
           initialEndCursor={initialEndCursor}
           query={HomePostsPageQuery}
+          variant="brief"
         />
       </section>
     </div>

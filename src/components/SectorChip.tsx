@@ -1,6 +1,9 @@
 /**
- * Small pill-shaped chip linking to /sector/[slug]. Used both inside
- * cards (to label the primary sector) and in the homepage chip row.
+ * Section label linking to /sector/[slug]. Editorial-style: tracked
+ * uppercase plain text in muted-foreground, no fill, no border, no
+ * pill. The hover state lifts the color to foreground rather than
+ * recoloring with accent, keeping accent reserved for active/focus
+ * affordances per the design principle "accent is a verb, not a noun".
  */
 import Link from "next/link";
 
@@ -14,14 +17,10 @@ export interface SectorChipProps {
   asStatic?: boolean;
 }
 
-// Color choice: small chip text needs to pass WCAG AA (4.5:1) against
-// the 8%-accent background. The default `text-accent` token is too
-// light at 12px regular weight; `text-accent-strong` is a darker
-// variant defined in globals.css purely for this surface.
 const baseClasses =
-  "inline-flex items-center rounded-full border border-accent/30 bg-accent/8 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wider text-accent-strong transition-colors";
-const hoverClasses =
-  "hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2";
+  "inline-block text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground";
+const linkClasses =
+  "transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline focus-visible:text-foreground";
 
 export function SectorChip({
   slug,
@@ -35,7 +34,7 @@ export function SectorChip({
   return (
     <Link
       href={`/sector/${slug}`}
-      className={cn(baseClasses, hoverClasses, className)}
+      className={cn(baseClasses, linkClasses, className)}
     >
       {name}
     </Link>
