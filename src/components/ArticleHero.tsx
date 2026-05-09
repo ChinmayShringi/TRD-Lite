@@ -10,7 +10,7 @@ import { AuthorByline } from "./AuthorByline";
 import { FeaturedImage } from "./FeaturedImage";
 import { SectorChip } from "./SectorChip";
 import type { PostCard as PostCardData } from "@/src/lib/fragments";
-import { decodeText, stripAndDecode } from "@/src/lib/text";
+import { decodeText } from "@/src/lib/text";
 
 export interface ArticleHeroProps {
   post: PostCardData;
@@ -20,15 +20,11 @@ export interface ArticleHeroProps {
 export function ArticleHero({ post, className }: ArticleHeroProps) {
   const primarySector = post.sectors[0];
   const title = decodeText(post.title);
-  const excerptText = stripAndDecode(post.excerpt);
-  const excerpt = excerptText.length > 240
-    ? `${excerptText.slice(0, 240).trim()}...`
-    : excerptText;
 
   return (
     <article
       className={cn(
-        "group grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-center",
+        "group grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-stretch",
         className,
       )}
     >
@@ -39,16 +35,19 @@ export function ArticleHero({ post, className }: ArticleHeroProps) {
         // keeps axe-core's `link-name` rule happy.
         aria-label={title}
         tabIndex={-1}
-        className="block overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        className="block h-full overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
         <FeaturedImage
           media={post.featuredMedia}
           variant="hero"
           priority
-          className="transition-transform duration-500 group-hover:scale-[1.015]"
+          // On wide layouts the hero stretches to match the text column
+          // height; below the lg breakpoint it falls back to its natural
+          // 16/10 aspect so the mobile stack still has a faithful frame.
+          className="transition-transform duration-500 group-hover:scale-[1.015] lg:aspect-auto lg:h-full"
         />
       </Link>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col justify-center gap-4">
         {primarySector ? (
           <div>
             <SectorChip slug={primarySector.slug} name={primarySector.name} />
@@ -62,11 +61,6 @@ export function ArticleHero({ post, className }: ArticleHeroProps) {
             {title}
           </Link>
         </h2>
-        {excerpt ? (
-          <p className="text-base leading-7 text-muted-foreground sm:text-lg">
-            {excerpt}
-          </p>
-        ) : null}
         <AuthorByline
           author={post.author}
           publishedAt={post.publishedAt}
