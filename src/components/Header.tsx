@@ -21,6 +21,7 @@ import Link from "next/link";
 
 import { HeaderCategories } from "./HeaderCategories";
 import { HeaderSearch } from "./HeaderSearch";
+import { ThemeToggle } from "./ThemeToggle";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
 
 const SectorsForHeaderQuery = /* GraphQL */ `
@@ -88,6 +89,7 @@ export async function Header() {
         <div className="flex items-center gap-2">
           <HeaderSearch />
           <HeaderCategories sectors={sectors} />
+          <ThemeToggle />
         </div>
       </div>
     </header>

@@ -6,8 +6,6 @@
  */
 import Link from "next/link";
 
-import { ThemeToggle } from "./ThemeToggle";
-
 export function Footer() {
   return (
     <footer className="border-t border-border">
@@ -27,14 +25,13 @@ export function Footer() {
             .
           </p>
         </div>
-        <div className="flex items-center gap-4 text-xs">
+        <div className="flex gap-4 text-xs">
           <Link
             href="/sync-status"
             className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
           >
             Sync status
           </Link>
-          <ThemeToggle />
         </div>
       </div>
     </footer>

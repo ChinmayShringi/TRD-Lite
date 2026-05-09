@@ -21,15 +21,19 @@ export interface ArticleCardProps {
 export function ArticleCard({ post, className }: ArticleCardProps) {
   const primarySector = post.sectors[0];
   const title = decodeText(post.title);
-  const excerptText = stripAndDecode(post.excerpt);
-  const excerpt = excerptText.length > 160
-    ? `${excerptText.slice(0, 160).trim()}...`
-    : excerptText;
+  // Let `line-clamp-3` truncate the excerpt visually; the manual char
+  // slice we used to do here would fight the clamp and produce two
+  // ellipses on long copy.
+  const excerpt = stripAndDecode(post.excerpt);
 
   return (
     <article
       className={cn(
-        "group flex flex-col gap-4 focus-within:outline-none",
+        // `h-full` makes every card fill its grid row; the inner
+        // column then uses `flex-1` + `mt-auto` on the byline to pin
+        // the timestamp to the bottom regardless of how many lines the
+        // title or excerpt actually consume.
+        "group flex h-full flex-col gap-4 focus-within:outline-none",
         className,
       )}
     >
@@ -48,7 +52,7 @@ export function ArticleCard({ post, className }: ArticleCardProps) {
           className="transition-transform duration-300 group-hover:scale-[1.02]"
         />
       </Link>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-1 flex-col gap-2">
         {primarySector ? (
           <div>
             <SectorChip slug={primarySector.slug} name={primarySector.name} />
@@ -57,7 +61,7 @@ export function ArticleCard({ post, className }: ArticleCardProps) {
         <h3 className="font-heading text-xl font-semibold leading-snug tracking-tight text-foreground">
           <Link
             href={`/article/${post.slug}`}
-            className="transition-colors group-hover:text-accent focus-visible:outline-none focus-visible:underline"
+            className="line-clamp-2 transition-colors focus-visible:outline-none focus-visible:underline"
           >
             {title}
           </Link>
@@ -70,7 +74,7 @@ export function ArticleCard({ post, className }: ArticleCardProps) {
         <AuthorByline
           author={post.author}
           publishedAt={post.publishedAt}
-          className="mt-1"
+          className="mt-auto pt-2"
         />
       </div>
     </article>
