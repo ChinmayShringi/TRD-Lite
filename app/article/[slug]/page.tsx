@@ -28,7 +28,7 @@ import {
 } from "@/src/lib/fragments";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
 import { getPostForMetadata, stripHtml } from "@/src/lib/seo";
-import { decodeText } from "@/src/lib/text";
+import { decodeText, rewriteTrdArticleLinks } from "@/src/lib/text";
 
 interface ArticlePageData {
   post: PostDetail | null;
@@ -131,7 +131,10 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   }
 
   // Pre-sanitized at sync time. See src/lib/sanitize.ts and plan.md 9.5.
-  const safeHtml = post.contentHtml;
+  // Render-time rewrite of TRD article hrefs into /article/<slug> so
+  // the inline "Read more" embed and any other internal links route
+  // through this app instead of bouncing the reader to therealdeal.com.
+  const safeHtml = rewriteTrdArticleLinks(post.contentHtml);
 
   // JSON-LD NewsArticle for richer SERP entries. Per plan.md 9.5 SEO #2
   // we expose the structured data on the article page so search

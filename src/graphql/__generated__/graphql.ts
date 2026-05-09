@@ -19,6 +19,11 @@ export type SitemapQueryVariables = Exact<{
 
 export type SitemapQuery = { posts: { edges: Array<{ node: { slug: string, modifiedAt: string } }> } };
 
+export type ForceSyncRateGateQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type ForceSyncRateGateQuery = { syncStatus: { lastRunAt: string | null } };
+
 export type SectorsForHeaderQueryVariables = Exact<{ [key: string]: never; }>;
 
 

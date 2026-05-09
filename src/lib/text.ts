@@ -36,3 +36,25 @@ export function stripAndDecode(input: string | null | undefined): string {
   if (!input) return "";
   return decode(input.replace(/<[^>]*>/g, "")).trim();
 }
+
+/**
+ * Rewrite anchor `href` values that point at therealdeal.com article
+ * URLs (`/<sector>/YYYY/MM/DD/<slug>/`, with or without the canonical
+ * domain prefix) so they target this app's `/article/<slug>` route
+ * instead. The TRD-mirror corpus is what we serve; sending readers to
+ * the live TRD site mid-article would break the in-app reading flow.
+ *
+ * Slugs that are not in our local mirror will 404 on `/article/<slug>`,
+ * which is the same outcome they would have under any other rewrite
+ * scheme. External links (non-TRD hosts) and TRD pages that are not
+ * articles (e.g., section indexes) are left untouched by the regex.
+ *
+ * Applied at render time so existing rows (already sanitized into the
+ * DB before this rewrite existed) pick up the fix without a backfill.
+ */
+const TRD_ARTICLE_HREF_RE =
+  /href="(?:https?:\/\/(?:www\.)?therealdeal\.com)?\/[\w-]+\/\d{4}\/\d{2}\/\d{2}\/([\w-]+)\/?(?:[?#][^"]*)?"/g;
+
+export function rewriteTrdArticleLinks(html: string): string {
+  return html.replace(TRD_ARTICLE_HREF_RE, 'href="/article/$1"');
+}
