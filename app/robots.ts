@@ -1,16 +1,15 @@
 /**
  * Robots.txt generator.
  *
- * Per plan.md section 9.5 SEO #3 this is a demo deployment, not a
- * source of truth. We tell crawlers to stay away entirely so we never
- * compete with The Real Deal's real article URLs in search results.
- * The complementary signal lives in each page's `robots: { index:
- * false, follow: false }` metadata, but the file-level disallow makes
- * the intent explicit at `/robots.txt` even before any page is rendered.
+ * Article pages set their canonical to the original therealdeal.com
+ * URL, so search engines that respect `rel="canonical"` will surface
+ * TRD's article in results, not ours. That makes it safe to allow
+ * crawlers across the whole tree: indexing TRD-Lite improves
+ * discoverability of the demo and won't compete with TRD itself.
  *
- * The sitemap reference is preserved so any explicitly-allowed crawler
- * (e.g., the user pasting a URL into a chat product) can still discover
- * the article surface on a per-page basis.
+ * Operational pages (sync status, admin, internal API routes) are
+ * disallowed: they don't add user value in search results and the
+ * admin path is auth-gated anyway.
  */
 import type { MetadataRoute } from "next";
 
@@ -19,7 +18,14 @@ import { getBaseUrl } from "@/src/lib/seo";
 export default function robots(): MetadataRoute.Robots {
   const base = getBaseUrl();
   return {
-    rules: [{ userAgent: "*", disallow: "/" }],
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: ["/admin/", "/api/", "/sync-status"],
+      },
+    ],
     sitemap: `${base}/sitemap.xml`,
+    host: base,
   };
 }

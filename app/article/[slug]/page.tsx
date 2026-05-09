@@ -88,10 +88,11 @@ export async function generateMetadata({
       images: post.featuredMedia ? [post.featuredMedia.url] : undefined,
     },
     // Canonical points back to the original TRD URL per plan.md 9.5
-    // SEO #1: this is a demo, the source of truth is upstream, and we
-    // never want Google to index TRD-Lite as a competing copy.
+    // SEO #1: the source of truth is upstream. With the canonical in
+    // place, Google credits TRD with the article and indexing our
+    // mirror is safe (and helps the demo show up for direct queries).
     alternates: { canonical: post.link },
-    robots: { index: false, follow: false },
+    robots: { index: true, follow: true },
   };
 }
 

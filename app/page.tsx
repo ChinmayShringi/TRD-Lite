@@ -43,24 +43,26 @@ export const revalidate = 60;
 
 const HOMEPAGE_TAGS = ["homepage"];
 
+const HOMEPAGE_TITLE = "Latest real estate news";
 const HOMEPAGE_DESCRIPTION =
-  "A take-home demo: cached mirror of recent posts from The Real Deal.";
+  "Latest real-estate news from TRD Lite: commercial, residential, development, retail, and policy stories from across the United States, mirrored from The Real Deal.";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: "Latest news (demo)",
+    title: HOMEPAGE_TITLE,
     description: HOMEPAGE_DESCRIPTION,
+    alternates: { canonical: "/" },
     openGraph: {
-      title: "TRD News (demo)",
+      title: HOMEPAGE_TITLE,
       description: HOMEPAGE_DESCRIPTION,
       type: "website",
+      url: "/",
     },
     twitter: {
       card: "summary_large_image",
-      title: "TRD News (demo)",
+      title: HOMEPAGE_TITLE,
       description: HOMEPAGE_DESCRIPTION,
     },
-    robots: { index: false, follow: false },
   };
 }
 
