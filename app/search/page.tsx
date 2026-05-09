@@ -17,6 +17,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { SearchAutoInput } from "@/src/components/SearchAutoInput";
 import { SearchResultCard } from "@/src/components/SearchResultCard";
 import {
   SearchPostsQuery,
@@ -58,7 +59,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             text in the local mirror.
           </p>
         </header>
-        <SearchForm initialValue="" />
+        <SearchAutoInput initialValue="" />
       </div>
     );
   }
@@ -92,7 +93,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             : `${edges.length} match${edges.length === 1 ? "" : "es"}`}
           {data?.searchPosts.pageInfo?.hasNextPage ? " (showing first page)" : ""}.
         </p>
-        <SearchForm initialValue={rawQuery} />
+        <SearchAutoInput initialValue={rawQuery} />
       </header>
 
       {fetchError ? (
@@ -138,36 +139,3 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   );
 }
 
-/**
- * Minimal GET form. Submits `q` to `/search`; no JS required and
- * works inside a Server Component without a client boundary.
- */
-function SearchForm({ initialValue }: { initialValue: string }) {
-  return (
-    <form
-      action="/search"
-      method="get"
-      role="search"
-      className="flex flex-col gap-2 sm:flex-row"
-    >
-      <label htmlFor="search-q" className="sr-only">
-        Search query
-      </label>
-      <input
-        id="search-q"
-        name="q"
-        type="search"
-        defaultValue={initialValue}
-        placeholder="Search articles..."
-        autoComplete="off"
-        className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-      />
-      <button
-        type="submit"
-        className="rounded-md border border-border bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-      >
-        Search
-      </button>
-    </form>
-  );
-}

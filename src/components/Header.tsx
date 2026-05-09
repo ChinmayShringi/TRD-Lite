@@ -6,7 +6,6 @@
  * traffic for menu data.
  */
 import Link from "next/link";
-import { Suspense } from "react";
 
 import { HeaderCategories } from "./HeaderCategories";
 import { HeaderSearch } from "./HeaderSearch";
@@ -55,13 +54,7 @@ export async function Header() {
           TRD Lite
         </Link>
         <div className="flex items-center gap-2">
-          <Suspense
-            fallback={
-              <div aria-hidden className="h-9 w-9 rounded-full bg-muted/30" />
-            }
-          >
-            <HeaderSearch />
-          </Suspense>
+          <HeaderSearch />
           <HeaderCategories sectors={sectors} />
           <ThemeToggle />
         </div>
