@@ -43,7 +43,7 @@ flowchart LR
     SYNC -->|idempotent upsert<br/>txn per page| DB[(Neon Postgres<br/>iad1)]
     SYNC -->|revalidateTag| CACHE[Next.js Data Cache<br/>+ Full Route Cache]
     DB --> GQL["/api/graphql<br/>Yoga + DataLoader"]
-    GQL --> RSC[React Server Components<br/>app/page.tsx, app/article/[slug]]
+    GQL --> RSC["React Server Components<br/>app/page.tsx, app/article/[slug]"]
     CACHE --> RSC
     RSC --> CDN[Vercel Edge / CDN]
     CDN --> BROWSER[Browser]
@@ -220,4 +220,4 @@ The full execution trace lives in [`docs/orchestration/orchestration-plan.md`](d
 
 ## License
 
-For the take-home assignment from The Real Deal. Not for distribution.
+MIT, see [`LICENSE`](./LICENSE). Authored as a take-home for The Real Deal; article content is mirrored from therealdeal.com and every article page links back to its canonical URL there.
