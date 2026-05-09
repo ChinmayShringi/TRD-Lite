@@ -99,7 +99,7 @@ export function HeaderSearch({
         <SearchIcon className="h-4 w-4" aria-hidden="true" />
       </button>
       <div
-        className={`flex items-center overflow-hidden transition-[width,opacity] duration-200 ease-out ${
+        className={`flex items-stretch overflow-hidden rounded-full border border-border bg-background transition-[width,opacity] duration-200 ease-out focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 ${
           expanded ? "w-56 opacity-100 sm:w-72" : "pointer-events-none w-0 opacity-0"
         }`}
         aria-hidden={!expanded}
@@ -115,13 +115,13 @@ export function HeaderSearch({
           onChange={(e) => setValue(e.target.value)}
           onBlur={handleBlur}
           tabIndex={expanded ? 0 : -1}
-          className="h-9 w-full rounded-l-full border border-r-0 border-border bg-background px-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          className="h-9 w-full bg-transparent px-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none"
         />
         <button
           type="submit"
           tabIndex={expanded ? 0 : -1}
           aria-label="Search"
-          className="flex h-9 items-center rounded-r-full border border-foreground bg-foreground px-3 text-xs font-medium uppercase tracking-wider text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          className="flex h-9 shrink-0 items-center bg-foreground px-3 text-xs font-medium uppercase tracking-wider text-background transition-colors hover:bg-foreground/90 focus:outline-none focus-visible:outline-none"
         >
           Go
         </button>

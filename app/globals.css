@@ -204,4 +204,29 @@
     text-align: center;
     margin-top: 0.5rem;
   }
+  /* WordPress emits embeds (YouTube, Vimeo, Tweet, etc.) with hard
+   * `width="560" height="315"` attributes inside <iframe> or wrapped
+   * in <figure class="wp-block-embed">. Without these rules the
+   * iframe paints at 560px regardless of the article column, leaving
+   * a narrow video sitting on the left of the body. width: 100% +
+   * aspect-ratio: 16/9 is the modern responsive-iframe pattern; it
+   * supersedes the inline width/height attributes. */
+  .article-prose iframe {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    margin: 1.75em 0;
+    border: 0;
+    border-radius: 0.5rem;
+    background-color: var(--muted);
+  }
+  .article-prose figure.wp-block-embed,
+  .article-prose figure:has(iframe) {
+    width: 100%;
+  }
+  .article-prose figure.wp-block-embed iframe,
+  .article-prose figure:has(iframe) iframe {
+    margin: 0;
+  }
 }
