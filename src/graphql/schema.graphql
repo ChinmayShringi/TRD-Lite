@@ -1,0 +1,129 @@
+
+  scalar DateTime
+
+  enum Taxonomy {
+    SECTOR
+    MARKET
+    REGION
+    NEIGHBORHOOD
+    STORY_TYPE
+    COMPANY
+    PEOPLE
+    TAG
+  }
+
+  type Query {
+    posts(
+      first: Int = 10
+      after: String
+      sector: String
+      market: String
+    ): PostConnection!
+    post(slug: String!): Post
+    sectors: [Term!]!
+    markets: [Term!]!
+    postsByTerm(
+      taxonomy: Taxonomy!
+      slug: String!
+      first: Int = 10
+      after: String
+    ): PostConnection!
+    """
+    Postgres FTS over title + excerpt + content_html. Blank query
+    returns an empty connection (no error). Cursor pagination is
+    rank-then-id ordered: `after` is an opaque numeric offset so the
+    next page picks up immediately after the prior end. See
+    plan.md section 15 #2 and drizzle/0001_search_vector.sql.
+    """
+    searchPosts(
+      query: String!
+      first: Int = 10
+      after: String
+    ): PostConnection!
+    syncStatus: SyncStatus!
+    recentSyncRuns(limit: Int = 20): [SyncRun!]!
+  }
+
+  type Post {
+    id: ID!
+    slug: String!
+    title: String!
+    excerpt: String!
+    excerptHtml: String!
+    contentHtml: String!
+    publishedAt: DateTime!
+    modifiedAt: DateTime!
+    link: String!
+    author: Author
+    featuredMedia: Media
+    sectors: [Term!]!
+    markets: [Term!]!
+    people: [Term!]!
+    companies: [Term!]!
+    tags: [Term!]!
+  }
+
+  type Author {
+    id: ID!
+    slug: String!
+    name: String!
+    description: String
+    avatarUrl: String
+    posts(first: Int = 10, after: String): PostConnection!
+  }
+
+  type Media {
+    id: ID!
+    url: String!
+    alt: String
+    width: Int
+    height: Int
+    sizes: [MediaSize!]!
+  }
+
+  type MediaSize {
+    name: String!
+    url: String!
+    width: Int!
+    height: Int!
+  }
+
+  type Term {
+    id: ID!
+    taxonomy: Taxonomy!
+    slug: String!
+    name: String!
+  }
+
+  type SyncStatus {
+    lastRunAt: DateTime
+    lastSuccessAt: DateTime
+    postCount: Int!
+    status: String!
+  }
+
+  type SyncRun {
+    id: ID!
+    startedAt: DateTime!
+    finishedAt: DateTime
+    modifiedAfter: DateTime
+    postsUpserted: Int!
+    errors: Int!
+    status: String!
+    notes: String
+  }
+
+  type PostConnection {
+    edges: [PostEdge!]!
+    pageInfo: PageInfo!
+  }
+
+  type PostEdge {
+    cursor: String!
+    node: Post!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    endCursor: String
+  }

@@ -14,7 +14,10 @@
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "codegen:dump-schema": "tsx scripts/dump-schema.ts",
+    "codegen": "pnpm codegen:dump-schema && graphql-codegen --config codegen.ts",
+    "codegen:check": "pnpm codegen && tsx scripts/check-codegen-clean.ts"
   },
   "dependencies": {
     "@graphql-tools/schema": "^10.0.33",
@@ -39,6 +42,9 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
+    "@graphql-codegen/cli": "^7.0.0",
+    "@graphql-codegen/typescript": "^6.0.1",
+    "@graphql-codegen/typescript-operations": "^6.0.1",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",

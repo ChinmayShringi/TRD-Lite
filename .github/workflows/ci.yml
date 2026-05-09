@@ -22,6 +22,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      # Verifies that committed graphql-codegen output (the dumped SDL
+      # plus src/graphql/__generated__/) matches what the current
+      # schema and fragments produce. Fails the build if a developer
+      # changed an operation or the schema without re-running
+      # `pnpm codegen`. See plan.md section 15 #4.
+      - run: pnpm codegen:check
       - run: pnpm build
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

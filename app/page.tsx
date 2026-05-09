@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import { ArticleCard } from "@/src/components/ArticleCard";
 import { ArticleHero } from "@/src/components/ArticleHero";
 import { SectorChip } from "@/src/components/SectorChip";
+import type { HomePageQuery as HomePageQueryResult } from "@/src/graphql/__generated__/graphql";
 import {
   HomePageQuery,
   type PostCard,
@@ -17,10 +18,16 @@ import {
 } from "@/src/lib/fragments";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
 
-interface HomePageData {
+// Cross-check: the generated `HomePageQuery` shape from
+// graphql-codegen must remain assignable to the locally hand-typed
+// `HomePageData` shape we read from the GraphQL response. If the
+// schema or the operation drifts, this assignment fails to compile,
+// which is exactly the early signal we wired codegen up for. See
+// plan.md section 15 #4.
+type HomePageData = HomePageQueryResult & {
   posts: PostConnection<PostCard>;
   sectors: TermFields[];
-}
+};
 
 // The homepage fetches from the in-process Yoga handler at
 // `/api/graphql`. During `next build` the route is not running, so we
