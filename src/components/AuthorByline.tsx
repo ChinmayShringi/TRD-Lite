@@ -3,8 +3,6 @@
  * <time> element exposes a machine-readable timestamp via `dateTime`
  * (per WCAG/SEO best practice in plan.md section 9.5).
  */
-import Image from "next/image";
-
 import { cn } from "@/lib/utils";
 import type { AuthorFields } from "@/src/lib/fragments";
 
@@ -41,15 +39,6 @@ export function AuthorByline({
         className,
       )}
     >
-      {isDetailed && author?.avatarUrl ? (
-        <Image
-          src={author.avatarUrl}
-          alt=""
-          width={40}
-          height={40}
-          className="h-10 w-10 rounded-full bg-muted object-cover"
-        />
-      ) : null}
       <div className="flex flex-col">
         {author ? (
           <span className="font-medium text-foreground">{author.name}</span>
