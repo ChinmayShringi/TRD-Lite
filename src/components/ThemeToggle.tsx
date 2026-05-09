@@ -50,19 +50,17 @@ export function ThemeToggle() {
     }
   }
 
-  // Render a placeholder before hydration so the icon does not flicker
-  // between sun and moon on first paint.
-  if (!mounted) {
-    return (
-      <span
-        aria-hidden
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground"
-      />
-    );
-  }
-
-  const Icon = theme === "dark" ? Sun : Moon;
-  const label = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
+  // Pre-hydration we cannot know the resolved theme without reading
+  // `document.documentElement.classList`, which is unavailable on the
+  // server. Render the moon icon (the most likely "you can switch to
+  // dark" affordance) and rely on `suppressHydrationWarning` on the
+  // <span> wrapper so React tolerates the post-mount swap when the
+  // user has saved a dark preference.
+  const Icon = mounted && theme === "dark" ? Sun : Moon;
+  const label =
+    mounted && theme === "dark"
+      ? "Switch to light theme"
+      : "Switch to dark theme";
 
   return (
     <button
@@ -72,7 +70,9 @@ export function ThemeToggle() {
       onClick={toggle}
       className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
     >
-      <Icon className="h-4 w-4" aria-hidden="true" />
+      <span suppressHydrationWarning className="flex">
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
     </button>
   );
 }
