@@ -1,131 +1,79 @@
 /**
- * Sticky-header search input. Renders as a single magnifier button
- * when collapsed; on focus, the button hides and a width-animated
- * input slides in. Submitting (Enter or the "Go" button) navigates to
- * /search?q=... via a plain GET form, so the surface works without JS
- * the moment it has been mounted.
+ * Sticky-header search. Pure-CSS open/close animation: the input
+ * sits at icon-size and expands when it gains focus or holds text,
+ * driven by `:focus` / `:not(:placeholder-shown)` selectors in
+ * `app/globals.css` (`.search-box` block). The trailing
+ * `button[type="reset"]` is a single element that morphs from a
+ * magnifier handle (closed) to an X (open) using two pseudo-element
+ * bars; React does not manage that state.
  *
- * State machine is intentionally tiny: `expanded` becomes true the
- * moment the user gives the input keyboard or pointer focus, stays
- * true while the input is non-empty, and collapses back when both
- * focus is lost AND the input is empty. This keeps the user from
- * losing their query if they tab into the input by mistake.
+ * React still owns:
+ *  - controlled `value` so URL-seeding (`?q=`) carries between
+ *    /search navigations,
+ *  - submit handling that pushes to /search via the App Router,
+ *  - reset that blurs the input so it animates back to icon-size.
+ *
+ * The `placeholder=" "` (single space) is load-bearing: an empty
+ * placeholder would make `:placeholder-shown` always evaluate true
+ * and prevent the open state from sticking when text is present.
  */
 "use client";
 
-import { Search as SearchIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
-export interface HeaderSearchProps {
-  /** Optional placeholder; falls back to a generic prompt. */
-  placeholder?: string;
-}
-
-export function HeaderSearch({
-  placeholder = "Search articles...",
-}: HeaderSearchProps) {
+export function HeaderSearch() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  // Seed from the existing `?q=` so navigating between search-result
-  // pages keeps the term visible without re-typing.
   const initialQuery = searchParams?.get("q") ?? "";
   const [value, setValue] = useState<string>(initialQuery);
-  const [expanded, setExpanded] = useState<boolean>(initialQuery.length > 0);
 
-  // Stay in sync if the URL changes from outside (back/forward, server
-  // navigation). We only widen when the URL has a real query.
+  // Stay in sync with URL changes (back/forward, server navigation).
   useEffect(() => {
-    const next = searchParams?.get("q") ?? "";
-    setValue(next);
-    if (next.length > 0) setExpanded(true);
+    setValue(searchParams?.get("q") ?? "");
   }, [searchParams]);
 
-  function handleSubmit(ev: FormEvent<HTMLFormElement>) {
+  function handleSubmit(ev: FormEvent<HTMLFormElement>): void {
     ev.preventDefault();
     const trimmed = value.trim();
-    if (trimmed.length === 0) {
-      router.push("/search");
-      return;
-    }
-    const params = new URLSearchParams({ q: trimmed });
-    router.push(`/search?${params.toString()}`);
+    if (trimmed.length === 0) return;
+    router.push(
+      `/search?${new URLSearchParams({ q: trimmed }).toString()}`,
+    );
   }
 
-  function handleBlur() {
-    if (value.trim().length === 0) {
-      setExpanded(false);
-    }
-  }
-
-  function openAndFocus() {
-    setExpanded(true);
-    // Focus deferred to next tick so the width transition does not
-    // start until the input has been laid out at its new size.
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
+  function handleReset(): void {
+    setValue("");
+    // Blur on the next frame so React re-renders the empty value
+    // first; otherwise the CSS `:focus` state keeps the box open.
+    requestAnimationFrame(() => inputRef.current?.blur());
   }
 
   return (
     <form
-      action="/search"
-      method="get"
       role="search"
+      method="get"
+      action="/search"
       onSubmit={handleSubmit}
-      className="relative flex items-center"
+      onReset={handleReset}
+      className="search-box"
     >
       <label htmlFor={inputId} className="sr-only">
         Search articles
       </label>
-      <button
-        type="button"
-        aria-label="Open search"
-        aria-expanded={expanded}
-        onClick={openAndFocus}
-        className={`flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${
-          expanded ? "pointer-events-none opacity-0" : "opacity-100"
-        }`}
-      >
-        <SearchIcon className="h-4 w-4" aria-hidden="true" />
-      </button>
-      <div
-        className={`flex items-stretch overflow-hidden rounded-full border border-border bg-background transition-[width,opacity] duration-200 ease-out focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 ${
-          expanded ? "w-56 opacity-100 sm:w-72" : "pointer-events-none w-0 opacity-0"
-        }`}
-        aria-hidden={!expanded}
-      >
-        <input
-          id={inputId}
-          ref={inputRef}
-          name="q"
-          type="search"
-          autoComplete="off"
-          value={value}
-          placeholder={placeholder}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={handleBlur}
-          tabIndex={expanded ? 0 : -1}
-          className="h-9 w-full bg-transparent px-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:outline-none"
-        />
-        <button
-          type="submit"
-          tabIndex={expanded ? 0 : -1}
-          aria-label="Search"
-          className="flex h-9 shrink-0 items-center bg-foreground px-3 text-xs font-medium uppercase tracking-wider text-background transition-colors hover:bg-foreground/90 focus:outline-none focus-visible:outline-none"
-        >
-          Go
-        </button>
-      </div>
+      <input
+        id={inputId}
+        ref={inputRef}
+        name="q"
+        type="text"
+        autoComplete="off"
+        placeholder=" "
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <button type="reset" aria-label={value ? "Clear search" : "Search"} />
     </form>
   );
 }

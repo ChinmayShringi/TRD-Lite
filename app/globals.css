@@ -229,4 +229,107 @@
   .article-prose figure:has(iframe) iframe {
     margin: 0;
   }
+
+  /* ---------------------------------------------------------------
+   * Header search box. Pure-CSS open/close: the input expands when
+   * it gains focus or carries text. The reset button morphs from a
+   * magnifier handle (closed) to an X (open) via two pseudo-element
+   * bars. React only handles value, submit, and clearing.
+   *
+   * Adapted from a CodePen pattern; rewritten with CSS variables so
+   * the same rule set works in both light and dark modes via the
+   * `--foreground` token.
+   * --------------------------------------------------------------- */
+  .search-box {
+    --sb-font-size: 13px;
+    --sb-size: 2.5em;
+    --sb-open-width: 14em;
+    --sb-frame-thickness: 0.18em;
+    --sb-handle-height: 1em;
+    --sb-open-trans-time: 600ms;
+    --sb-close-trans-time: 150ms;
+
+    font-size: var(--sb-font-size);
+    border: solid var(--sb-frame-thickness) var(--foreground);
+    display: inline-block;
+    position: relative;
+    border-radius: var(--sb-size);
+    color: var(--foreground);
+  }
+  .search-box input[type="text"] {
+    font-family: inherit;
+    font-weight: 500;
+    width: var(--sb-size);
+    height: var(--sb-size);
+    padding: 0.3em 2.1em 0.3em 0.6em;
+    border: none;
+    background: transparent;
+    color: var(--foreground);
+    box-sizing: border-box;
+    border-radius: var(--sb-size);
+    transition:
+      width var(--sb-open-trans-time) cubic-bezier(0.68, -0.55, 0.27, 1.55)
+        var(--sb-close-trans-time);
+  }
+  .search-box input[type="text"]:focus {
+    outline: none;
+  }
+  .search-box input[type="text"]:focus,
+  .search-box input[type="text"]:not(:placeholder-shown) {
+    width: var(--sb-open-width);
+    transition:
+      width var(--sb-open-trans-time) cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  }
+  .search-box input[type="text"]:focus + button[type="reset"],
+  .search-box input[type="text"]:not(:placeholder-shown) + button[type="reset"] {
+    transform: rotate(-45deg) translateY(0);
+    transition:
+      transform var(--sb-close-trans-time) ease-out var(--sb-open-trans-time);
+  }
+  .search-box input[type="text"]:focus + button[type="reset"]::after,
+  .search-box
+    input[type="text"]:not(:placeholder-shown)
+    + button[type="reset"]::after {
+    opacity: 1;
+    transition:
+      opacity var(--sb-close-trans-time) ease
+        calc(var(--sb-open-trans-time) + var(--sb-close-trans-time));
+  }
+  .search-box button[type="reset"] {
+    background-color: transparent;
+    width: var(--sb-handle-height);
+    height: var(--sb-handle-height);
+    border: 0;
+    padding: 0;
+    outline: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    top: calc((var(--sb-size) / 2) - (var(--sb-handle-height) / 2));
+    right: calc((var(--sb-size) / 2) - (var(--sb-handle-height) / 2));
+    cursor: pointer;
+    /* Closed state: rotate -45deg and slide along the rotated Y axis
+     * so the bar pokes out of the bottom-right of the circle, looking
+     * like the handle of a magnifying glass. */
+    transform: rotate(-45deg)
+      translateY(calc(var(--sb-size) - var(--sb-frame-thickness)));
+    transition:
+      transform var(--sb-close-trans-time) ease-out var(--sb-close-trans-time);
+  }
+  .search-box button[type="reset"]::before,
+  .search-box button[type="reset"]::after {
+    content: "";
+    background-color: var(--foreground);
+    width: var(--sb-frame-thickness);
+    height: var(--sb-handle-height);
+    position: absolute;
+  }
+  .search-box button[type="reset"]::after {
+    transform: rotate(90deg);
+    opacity: 0;
+    transition:
+      transform var(--sb-close-trans-time) ease-out,
+      opacity var(--sb-close-trans-time) ease-out;
+  }
 }
