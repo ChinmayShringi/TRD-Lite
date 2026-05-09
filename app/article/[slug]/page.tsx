@@ -199,7 +199,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               id="related-heading"
               className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
             >
-              Read more
+              Related stories
             </h2>
           </header>
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
