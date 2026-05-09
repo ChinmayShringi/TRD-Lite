@@ -54,18 +54,14 @@ function stripTrailingSlash(url: string): string {
  * we receive are short (a few sentences) and have already been
  * sanitized at sync time, so a tag-stripping regex is sufficient.
  */
+import { stripAndDecode } from "./text";
+
 export function stripHtml(input: string | null | undefined): string {
-  if (!input) return "";
-  return input
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+  // Delegate to the shared helper, then collapse runs of whitespace so
+  // metadata descriptions don't carry the original line breaks from the
+  // WordPress excerpt. The shared helper already covers every numeric
+  // and named HTML entity via the `he` library.
+  return stripAndDecode(input).replace(/\s+/g, " ").trim();
 }
 
 /** Smallest projection of a Post used for metadata + JSON-LD. */

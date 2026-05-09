@@ -10,19 +10,17 @@ import { AuthorByline } from "./AuthorByline";
 import { FeaturedImage } from "./FeaturedImage";
 import { SectorChip } from "./SectorChip";
 import type { PostCard as PostCardData } from "@/src/lib/fragments";
+import { decodeText, stripAndDecode } from "@/src/lib/text";
 
 export interface ArticleHeroProps {
   post: PostCardData;
   className?: string;
 }
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, "").trim();
-}
-
 export function ArticleHero({ post, className }: ArticleHeroProps) {
   const primarySector = post.sectors[0];
-  const excerptText = stripHtml(post.excerpt);
+  const title = decodeText(post.title);
+  const excerptText = stripAndDecode(post.excerpt);
   const excerpt = excerptText.length > 240
     ? `${excerptText.slice(0, 240).trim()}...`
     : excerptText;
@@ -39,7 +37,7 @@ export function ArticleHero({ post, className }: ArticleHeroProps) {
         // Image-wrap link has no visible text; the post title here gives
         // screen-reader and assistive-tech users a meaningful name and
         // keeps axe-core's `link-name` rule happy.
-        aria-label={post.title}
+        aria-label={title}
         tabIndex={-1}
         className="block overflow-hidden rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
@@ -61,7 +59,7 @@ export function ArticleHero({ post, className }: ArticleHeroProps) {
             href={`/article/${post.slug}`}
             className="transition-colors group-hover:text-accent focus-visible:outline-none focus-visible:underline"
           >
-            {post.title}
+            {title}
           </Link>
         </h2>
         {excerpt ? (

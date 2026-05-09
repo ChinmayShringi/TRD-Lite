@@ -28,6 +28,7 @@ import {
 } from "@/src/lib/fragments";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
 import { getPostForMetadata, stripHtml } from "@/src/lib/seo";
+import { decodeText } from "@/src/lib/text";
 
 interface ArticlePageData {
   post: PostDetail | null;
@@ -57,6 +58,7 @@ export async function generateMetadata({
       robots: { index: false, follow: false },
     };
   }
+  const title = decodeText(post.title);
   const description = stripHtml(post.excerpt).slice(0, 200);
   const ogImages = post.featuredMedia
     ? [
@@ -68,10 +70,10 @@ export async function generateMetadata({
       ]
     : undefined;
   return {
-    title: post.title,
+    title,
     description,
     openGraph: {
-      title: post.title,
+      title,
       description,
       type: "article",
       publishedTime: post.publishedAt,
@@ -81,7 +83,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title: post.title,
+      title,
       description,
       images: post.featuredMedia ? [post.featuredMedia.url] : undefined,
     },
@@ -105,6 +107,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     notFound();
   }
 
+  const title = decodeText(post.title);
   const primarySector = post.sectors[0];
 
   // Pull related posts via postsByTerm. The current article will be in
@@ -138,7 +141,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const ldJson = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
-    headline: post.title,
+    headline: title,
     image: post.featuredMedia ? [post.featuredMedia.url] : [],
     datePublished: post.publishedAt,
     dateModified: post.modifiedAt,
@@ -170,7 +173,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           </div>
         ) : null}
         <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-          {post.title}
+          {title}
         </h1>
         <AuthorByline
           author={post.author}

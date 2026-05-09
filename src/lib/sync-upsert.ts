@@ -17,6 +17,7 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import ws from "ws";
 
 import { sanitizeArticleHtml } from "./sanitize";
+import { decodeText, stripAndDecode } from "./text";
 import {
   isMediaSuccess,
   type WpMediaSuccess,
@@ -287,8 +288,8 @@ export async function upsertPage(
             return {
               id: p.id,
               slug: p.slug,
-              title: p.title.rendered,
-              excerpt: p.excerpt.rendered.replace(/<[^>]*>/g, "").trim(),
+              title: decodeText(p.title.rendered),
+              excerpt: stripAndDecode(p.excerpt.rendered),
               excerptHtml: p.excerpt.rendered,
               contentHtml: sanitizeArticleHtml(p.content.rendered),
               status: p.status,
