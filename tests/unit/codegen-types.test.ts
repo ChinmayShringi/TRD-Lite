@@ -27,10 +27,14 @@ import type {
 describe("graphql-codegen output", () => {
   it("HomePageQuery has the expected top-level shape", () => {
     const sample: HomePageQuery = {
-      posts: { edges: [] },
+      posts: {
+        edges: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
       sectors: [],
     };
     expect(sample.posts.edges).toEqual([]);
+    expect(sample.posts.pageInfo.hasNextPage).toBe(false);
     expect(sample.sectors).toEqual([]);
   });
 

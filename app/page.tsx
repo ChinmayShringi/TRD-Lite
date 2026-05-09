@@ -6,12 +6,13 @@
  */
 import type { Metadata } from "next";
 
-import { ArticleCard } from "@/src/components/ArticleCard";
 import { ArticleHero } from "@/src/components/ArticleHero";
+import { InfiniteArticleList } from "@/src/components/InfiniteArticleList";
 import { SectorChip } from "@/src/components/SectorChip";
 import type { HomePageQuery as HomePageQueryResult } from "@/src/graphql/__generated__/graphql";
 import {
   HomePageQuery,
+  HomePostsPageQuery,
   type PostCard,
   type PostConnection,
   type TermFields,
@@ -25,7 +26,9 @@ import { gqlFetch } from "@/src/lib/graphql-fetch";
 // which is exactly the early signal we wired codegen up for. See
 // plan.md section 15 #4.
 type HomePageData = HomePageQueryResult & {
-  posts: PostConnection<PostCard>;
+  posts: PostConnection<PostCard> & {
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
   sectors: TermFields[];
 };
 
@@ -70,9 +73,11 @@ const FEATURED_SECTOR_SLUGS = [
 ];
 
 export default async function HomePage() {
+  // First page is large enough to fill 1 hero + 12 grid cards above
+  // the fold so the user lands on a real grid, not a skeleton.
   const data = await gqlFetch<HomePageData>(
     HomePageQuery,
-    { first: 10 },
+    { first: 13 },
     { tags: HOMEPAGE_TAGS, revalidate: 60 },
   );
 
@@ -95,7 +100,9 @@ export default async function HomePage() {
   }
 
   const heroPost = edges[0]?.node;
-  const gridPosts = edges.slice(1).map((e) => e.node);
+  const initialGridEdges = edges.slice(1);
+  const initialEndCursor = data.posts.pageInfo?.endCursor ?? null;
+  const initialHasNextPage = data.posts.pageInfo?.hasNextPage ?? false;
 
   // Pick a stable subset of sectors for the chip row. Prefer the
   // featured slugs in our hardcoded ordering when they exist; fall
@@ -155,11 +162,12 @@ export default async function HomePage() {
             Latest
           </h2>
         </header>
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-          {gridPosts.map((post) => (
-            <ArticleCard key={post.id} post={post} />
-          ))}
-        </div>
+        <InfiniteArticleList
+          initialEdges={initialGridEdges}
+          initialHasNextPage={initialHasNextPage}
+          initialEndCursor={initialEndCursor}
+          query={HomePostsPageQuery}
+        />
       </section>
     </div>
   );

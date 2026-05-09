@@ -61,7 +61,8 @@ export const typeDefs = /* GraphQL */ `
       after: String
     ): SearchPostConnection!
     syncStatus: SyncStatus!
-    recentSyncRuns(limit: Int = 20): [SyncRun!]!
+    recentSyncRuns(limit: Int = 20, offset: Int = 0): [SyncRun!]!
+    syncRunCount: Int!
   }
 
   type Post {

@@ -114,9 +114,35 @@ export const HomePageQuery = /* GraphQL */ `
           ...PostCard
         }
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
     sectors {
       ...TermFields
+    }
+  }
+  ${PostCardFragment}
+  ${AuthorFieldsFragment}
+  ${MediaFieldsFragment}
+  ${TermFieldsFragment}
+`;
+
+/** Subsequent-page query used by the homepage's infinite-scroll list. */
+export const HomePostsPageQuery = /* GraphQL */ `
+  query HomePostsPage($first: Int!, $after: String) {
+    posts(first: $first, after: $after) {
+      edges {
+        cursor
+        node {
+          ...PostCard
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
   ${PostCardFragment}
@@ -221,18 +247,20 @@ export const SyncBadgeQuery = /* GraphQL */ `
 /**
  * Sync-visibility query used by both `/sync-status` (public) and
  * `/admin/sync` (Basic-Auth-protected). Combines the operational
- * summary with the last N sync_runs rows so each page only needs one
+ * summary with a paginated slice of sync_runs and the total run count
+ * so the page can render a "page X of Y" footer without a second
  * GraphQL round trip.
  */
 export const SyncVisibilityQuery = /* GraphQL */ `
-  query SyncVisibility($limit: Int!) {
+  query SyncVisibility($limit: Int!, $offset: Int!) {
     syncStatus {
       lastRunAt
       lastSuccessAt
       postCount
       status
     }
-    recentSyncRuns(limit: $limit) {
+    syncRunCount
+    recentSyncRuns(limit: $limit, offset: $offset) {
       id
       startedAt
       finishedAt
@@ -351,5 +379,6 @@ export interface SyncRunFields {
 
 export interface SyncVisibilityData {
   syncStatus: SyncStatusFields;
+  syncRunCount: number;
   recentSyncRuns: SyncRunFields[];
 }

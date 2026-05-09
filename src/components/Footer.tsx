@@ -1,11 +1,10 @@
 /**
- * Site footer. Houses the SyncBadge so reviewers can see the sync
- * pipeline is alive at a glance, plus a couple of quiet links.
+ * Site footer. Brand strip on the left, quiet utility links on the
+ * right. The sync-pipeline badge that previously lived here was
+ * pulled into the dedicated /sync-status page so the footer no longer
+ * pings the GraphQL handler on every page render.
  */
 import Link from "next/link";
-import { Suspense } from "react";
-
-import { SyncBadge } from "./SyncBadge";
 
 export function Footer() {
   return (
@@ -26,30 +25,13 @@ export function Footer() {
             .
           </p>
         </div>
-        <div className="flex flex-col items-start gap-3 sm:items-end">
-          <Suspense
-            fallback={
-              <span className="text-xs text-muted-foreground">
-                checking sync...
-              </span>
-            }
+        <div className="flex gap-4 text-xs">
+          <Link
+            href="/sync-status"
+            className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
           >
-            <SyncBadge />
-          </Suspense>
-          <div className="flex gap-4 text-xs">
-            <Link
-              href="/sync-status"
-              className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
-            >
-              Sync status
-            </Link>
-            <Link
-              href="/api/graphql"
-              className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
-            >
-              GraphQL
-            </Link>
-          </div>
+            Sync status
+          </Link>
         </div>
       </div>
     </footer>

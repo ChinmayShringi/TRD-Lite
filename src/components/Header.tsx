@@ -1,23 +1,17 @@
 /**
- * Site header. Editorial layout: brand wordmark on the left, primary
- * sector navigation in the middle, expand-on-focus search and a
- * Categories dropdown on the right. Async server component: the
- * Categories dropdown receives a server-fetched sector list so the
- * client ships zero GraphQL traffic for the menu data.
+ * Site header. Editorial layout: brand wordmark on the left;
+ * search, Categories dropdown, and theme toggle on the right.
+ * Async server component: the Categories dropdown receives a
+ * server-fetched sector list so the client ships zero GraphQL
+ * traffic for menu data.
  */
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { HeaderCategories } from "./HeaderCategories";
 import { HeaderSearch } from "./HeaderSearch";
+import { ThemeToggle } from "./ThemeToggle";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
-
-const PRIMARY_SECTORS: { slug: string; label: string }[] = [
-  { slug: "residential", label: "Residential" },
-  { slug: "commercial", label: "Commercial" },
-  { slug: "politics", label: "Politics" },
-  { slug: "technology", label: "Technology" },
-];
 
 const SectorsForHeaderQuery = /* GraphQL */ `
   query SectorsForHeader {
@@ -48,8 +42,7 @@ export async function Header() {
     );
   } catch {
     // The dropdown is decorative; if the GraphQL call fails we hide it
-    // rather than break the masthead. The primary nav and search still
-    // render below.
+    // rather than break the masthead.
   }
 
   return (
@@ -61,20 +54,6 @@ export async function Header() {
         >
           TRD Lite
         </Link>
-        <nav
-          aria-label="Primary"
-          className="hidden flex-1 justify-center gap-6 text-sm font-medium text-muted-foreground sm:flex"
-        >
-          {PRIMARY_SECTORS.map((s) => (
-            <Link
-              key={s.slug}
-              href={`/sector/${s.slug}`}
-              className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
-            >
-              {s.label}
-            </Link>
-          ))}
-        </nav>
         <div className="flex items-center gap-2">
           <Suspense
             fallback={
@@ -84,6 +63,7 @@ export async function Header() {
             <HeaderSearch />
           </Suspense>
           <HeaderCategories sectors={sectors} />
+          <ThemeToggle />
         </div>
       </div>
     </header>

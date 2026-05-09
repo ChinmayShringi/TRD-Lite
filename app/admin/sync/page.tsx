@@ -37,7 +37,7 @@ export default async function AdminSyncPage() {
   try {
     data = await gqlFetch<SyncVisibilityData>(
       SyncVisibilityQuery,
-      { limit: RECENT_LIMIT },
+      { limit: RECENT_LIMIT, offset: 0 },
       { revalidate: 0 },
     );
   } catch (err) {

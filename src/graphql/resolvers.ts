@@ -495,19 +495,33 @@ export const resolvers = {
 
     recentSyncRuns: async (
       _: unknown,
-      args: { limit?: number | null },
+      args: { limit?: number | null; offset?: number | null },
       ctx: GraphQLContext,
     ): Promise<SyncRun[]> => {
       const requested = typeof args.limit === "number" ? args.limit : 20;
       // Clamp to a sane window so a malformed client cannot ask for the
       // full sync_runs history in one go.
       const limit = Math.min(Math.max(requested, 1), 100);
+      const offsetIn = typeof args.offset === "number" ? args.offset : 0;
+      const offset = Math.max(0, Math.floor(offsetIn));
       const rows = await ctx.db
         .select()
         .from(syncRuns)
         .orderBy(desc(syncRuns.id))
-        .limit(limit);
+        .limit(limit)
+        .offset(offset);
       return rows;
+    },
+
+    syncRunCount: async (
+      _: unknown,
+      __: unknown,
+      ctx: GraphQLContext,
+    ): Promise<number> => {
+      const [row] = await ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(syncRuns);
+      return row?.count ?? 0;
     },
   },
 

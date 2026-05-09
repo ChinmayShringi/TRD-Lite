@@ -19,6 +19,11 @@ export type SitemapQueryVariables = Exact<{
 
 export type SitemapQuery = { posts: { edges: Array<{ node: { slug: string, modifiedAt: string } }> } };
 
+export type SectorsForHeaderQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type SectorsForHeaderQuery = { sectors: Array<{ slug: string, name: string }> };
+
 export type TermFieldsFragment = { id: string, slug: string, name: string, taxonomy: Taxonomy };
 
 export type AuthorFieldsFragment = { id: string, slug: string, name: string, avatarUrl: string | null };
@@ -34,7 +39,15 @@ export type HomePageQueryVariables = Exact<{
 }>;
 
 
-export type HomePageQuery = { posts: { edges: Array<{ cursor: string, node: { id: string, slug: string, title: string, excerpt: string, publishedAt: string, link: string, author: { id: string, slug: string, name: string, avatarUrl: string | null } | null, featuredMedia: { id: string, url: string, alt: string | null, width: number | null, height: number | null, sizes: Array<{ name: string, url: string, width: number, height: number }> } | null, sectors: Array<{ id: string, slug: string, name: string, taxonomy: Taxonomy }> } }> }, sectors: Array<{ id: string, slug: string, name: string, taxonomy: Taxonomy }> };
+export type HomePageQuery = { posts: { edges: Array<{ cursor: string, node: { id: string, slug: string, title: string, excerpt: string, publishedAt: string, link: string, author: { id: string, slug: string, name: string, avatarUrl: string | null } | null, featuredMedia: { id: string, url: string, alt: string | null, width: number | null, height: number | null, sizes: Array<{ name: string, url: string, width: number, height: number }> } | null, sectors: Array<{ id: string, slug: string, name: string, taxonomy: Taxonomy }> } }>, pageInfo: { hasNextPage: boolean, endCursor: string | null } }, sectors: Array<{ id: string, slug: string, name: string, taxonomy: Taxonomy }> };
+
+export type HomePostsPageQueryVariables = Exact<{
+  first: number;
+  after: string | null | undefined;
+}>;
+
+
+export type HomePostsPageQuery = { posts: { edges: Array<{ cursor: string, node: { id: string, slug: string, title: string, excerpt: string, publishedAt: string, link: string, author: { id: string, slug: string, name: string, avatarUrl: string | null } | null, featuredMedia: { id: string, url: string, alt: string | null, width: number | null, height: number | null, sizes: Array<{ name: string, url: string, width: number, height: number }> } | null, sectors: Array<{ id: string, slug: string, name: string, taxonomy: Taxonomy }> } }>, pageInfo: { hasNextPage: boolean, endCursor: string | null } } };
 
 export type ArticlePageQueryVariables = Exact<{
   slug: string;
@@ -76,7 +89,8 @@ export type SyncBadgeQuery = { syncStatus: { lastSuccessAt: string | null, postC
 
 export type SyncVisibilityQueryVariables = Exact<{
   limit: number;
+  offset: number;
 }>;
 
 
-export type SyncVisibilityQuery = { syncStatus: { lastRunAt: string | null, lastSuccessAt: string | null, postCount: number, status: string }, recentSyncRuns: Array<{ id: string, startedAt: string, finishedAt: string | null, modifiedAfter: string | null, postsUpserted: number, errors: number, status: string, notes: string | null }> };
+export type SyncVisibilityQuery = { syncRunCount: number, syncStatus: { lastRunAt: string | null, lastSuccessAt: string | null, postCount: number, status: string }, recentSyncRuns: Array<{ id: string, startedAt: string, finishedAt: string | null, modifiedAfter: string | null, postsUpserted: number, errors: number, status: string, notes: string | null }> };

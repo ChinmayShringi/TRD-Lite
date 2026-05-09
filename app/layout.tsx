@@ -35,6 +35,16 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+// Pre-hydration script that runs before React paints so the user
+// never sees a flash of the wrong theme. Reads the saved preference
+// (`localStorage.trd-lite-theme`); falls back to the system color
+// scheme via `prefers-color-scheme`. Wrapped in try/catch because
+// localStorage can throw in private browsing. The script body is a
+// static literal under our control (no interpolation), which is why
+// we inject it inline here. This is the standard Next.js pattern for
+// avoiding the dark-mode flash on first load.
+const THEME_INIT_SCRIPT = `(function(){try{var s=window.localStorage.getItem('trd-lite-theme');var p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;if(s==='dark'||(!s&&p))document.documentElement.classList.add('dark');}catch(_){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,7 +54,14 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${inter.variable} ${sourceSerif.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
+      </head>
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <a
           href="#main"
