@@ -228,30 +228,23 @@ export function ListenButton({ text, title }: ListenButtonProps) {
   const paused = status === "paused";
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-y border-border py-3">
-      <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-        Listen
-      </span>
+    <div className="flex items-center gap-3 border-y border-border py-3">
       <button
         type="button"
         onClick={toggle}
         aria-pressed={playing}
-        aria-label={
-          playing
-            ? "Pause article audio"
-            : paused
-              ? "Resume article audio"
-              : "Play article audio"
-        }
-        className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 font-sans text-xs font-semibold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        aria-label={playing ? "Pause article audio" : "Play article audio"}
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
         {playing ? (
-          <Pause className="h-3.5 w-3.5" aria-hidden="true" />
+          <Pause className="h-4 w-4" aria-hidden="true" />
         ) : (
-          <Play className="h-3.5 w-3.5" aria-hidden="true" />
+          <Play className="h-4 w-4" aria-hidden="true" />
         )}
-        <span>{playing ? "Pause" : paused ? "Resume" : "Play"}</span>
       </button>
+      <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+        Listen
+      </span>
       <span className="sr-only" aria-live="polite">
         {playing ? "Reading article" : paused ? "Paused" : "Stopped"}
       </span>
