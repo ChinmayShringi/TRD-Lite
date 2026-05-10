@@ -26,11 +26,11 @@ export function RightRailItem({ post, className }: RightRailItemProps) {
         className="flex flex-col gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4"
       >
         {primarySector ? (
-          <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.28em] text-accent">
+          <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
             {primarySector.name}
           </span>
         ) : null}
-        <h3 className="font-heading text-xl font-semibold leading-snug tracking-tight text-foreground transition-colors group-hover:text-accent">
+        <h3 className="font-heading text-xl font-semibold leading-snug tracking-tight text-foreground transition-colors group-hover:text-foreground/60">
           {title}
         </h3>
         <AuthorByline author={post.author} publishedAt={post.publishedAt} />

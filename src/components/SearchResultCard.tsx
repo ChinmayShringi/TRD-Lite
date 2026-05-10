@@ -89,7 +89,7 @@ export function SearchResultCard({
         <h3 className="font-heading text-xl font-semibold leading-snug tracking-tight text-foreground">
           <Link
             href={`/article/${post.slug}`}
-            className="transition-colors group-hover:text-accent focus-visible:outline-none focus-visible:underline"
+            className="transition-colors group-hover:text-foreground/60 focus-visible:outline-none focus-visible:underline"
           >
             {renderSegments(titleSegments)}
           </Link>

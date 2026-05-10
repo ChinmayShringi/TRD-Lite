@@ -34,11 +34,11 @@ export function LeadStory({ post, className }: LeadStoryProps) {
         className="flex flex-col gap-5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4"
       >
         {primarySector ? (
-          <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.28em] text-accent">
+          <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
             {primarySector.name}
           </span>
         ) : null}
-        <h2 className="font-heading font-bold leading-[1.02] tracking-tight text-foreground transition-colors group-hover:text-accent text-[clamp(2rem,4.4vw,3.75rem)]">
+        <h2 className="font-heading font-bold leading-[1.02] tracking-tight text-foreground transition-colors group-hover:text-foreground/60 text-[clamp(2rem,4.4vw,3.75rem)]">
           {title}
         </h2>
         {deck ? (

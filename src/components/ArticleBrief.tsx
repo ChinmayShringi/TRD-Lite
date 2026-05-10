@@ -54,7 +54,7 @@ export function ArticleBrief({ post, className }: ArticleBriefProps) {
               asStatic
             />
           ) : null}
-          <h3 className="font-heading text-lg font-semibold leading-snug tracking-tight text-foreground transition-colors group-hover:text-accent sm:text-xl">
+          <h3 className="font-heading text-lg font-semibold leading-snug tracking-tight text-foreground transition-colors group-hover:text-foreground/60 sm:text-xl">
             {title}
           </h3>
           <AuthorByline author={post.author} publishedAt={post.publishedAt} />

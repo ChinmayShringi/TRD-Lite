@@ -56,7 +56,7 @@ export function ArticleHero({ post, className }: ArticleHeroProps) {
         <h2 className="font-heading text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl">
           <Link
             href={`/article/${post.slug}`}
-            className="transition-colors group-hover:text-accent focus-visible:outline-none focus-visible:underline"
+            className="transition-colors group-hover:text-foreground/60 focus-visible:outline-none focus-visible:underline"
           >
             {title}
           </Link>

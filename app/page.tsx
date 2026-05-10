@@ -7,6 +7,10 @@
 import type { Metadata } from "next";
 
 import { ColumnStory } from "@/src/components/ColumnStory";
+import {
+  EDITORS_CHOICE_SLUG,
+  EditorsChoice,
+} from "@/src/components/EditorsChoice";
 import { InfiniteArticleList } from "@/src/components/InfiniteArticleList";
 import { LeadStory } from "@/src/components/LeadStory";
 import { RightRailItem } from "@/src/components/RightRailItem";
@@ -14,13 +18,26 @@ import { SectionRule } from "@/src/components/SectionRule";
 import { SectorChip } from "@/src/components/SectorChip";
 import type { HomePageQuery as HomePageQueryResult } from "@/src/graphql/__generated__/graphql";
 import {
+  ArticlePageQuery,
   HomePageQuery,
   HomePostsPageQuery,
   type PostCard,
   type PostConnection,
+  type PostDetail,
   type TermFields,
 } from "@/src/lib/fragments";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
+
+// Pulls the first YouTube video ID out of WordPress-embedded content.
+// WP serves both `youtube.com/watch?v=...` source links and rendered
+// `youtube.com/embed/...` iframes; the union pattern catches both.
+const YOUTUBE_ID_RE =
+  /(?:youtube\.com\/(?:embed|watch\?v=)|youtu\.be\/)([A-Za-z0-9_-]{6,16})/;
+function extractYoutubeId(html: string | null | undefined): string | null {
+  if (!html) return null;
+  const m = html.match(YOUTUBE_ID_RE);
+  return m?.[1] ?? null;
+}
 
 // Cross-check: the generated `HomePageQuery` shape from
 // graphql-codegen must remain assignable to the locally hand-typed
@@ -80,11 +97,21 @@ const FEATURED_SECTOR_SLUGS = [
 export default async function HomePage() {
   // First page is large enough to fill 1 hero + 12 grid cards above
   // the fold so the user lands on a real grid, not a skeleton.
-  const data = await gqlFetch<HomePageData>(
-    HomePageQuery,
-    { first: 13 },
-    { tags: HOMEPAGE_TAGS, revalidate: 60 },
-  );
+  // Fetch the editor's-choice post in parallel; failures are swallowed
+  // because that section is decorative (the rest of the page must
+  // render even if the curated slug is missing).
+  const [data, editorsChoice] = await Promise.all([
+    gqlFetch<HomePageData>(
+      HomePageQuery,
+      { first: 13 },
+      { tags: HOMEPAGE_TAGS, revalidate: 60 },
+    ),
+    gqlFetch<{ post: PostDetail | null }>(
+      ArticlePageQuery,
+      { slug: EDITORS_CHOICE_SLUG },
+      { tags: [`post:${EDITORS_CHOICE_SLUG}`], revalidate: 300 },
+    ).catch(() => ({ post: null })),
+  ]);
 
   const edges = data.posts.edges;
   if (edges.length === 0) {
@@ -159,6 +186,19 @@ export default async function HomePage() {
               </aside>
             ) : null}
           </div>
+        </section>
+      ) : null}
+
+      {editorsChoice.post ? (
+        <section
+          aria-labelledby="editors-choice-heading"
+          className="flex flex-col gap-6"
+        >
+          <SectionRule label="Editor's choice" id="editors-choice-heading" />
+          <EditorsChoice
+            post={editorsChoice.post}
+            youtubeId={extractYoutubeId(editorsChoice.post.contentHtml)}
+          />
         </section>
       ) : null}
 

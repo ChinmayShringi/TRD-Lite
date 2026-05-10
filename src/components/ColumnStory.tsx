@@ -38,14 +38,14 @@ export function ColumnStory({ post, className }: ColumnStoryProps) {
         />
       </Link>
       {primarySector ? (
-        <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.28em] text-accent">
+        <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
           {primarySector.name}
         </span>
       ) : null}
       <h3 className="line-clamp-3 font-heading text-xl font-semibold leading-snug tracking-tight text-foreground">
         <Link
           href={`/article/${post.slug}`}
-          className="transition-colors group-hover:text-accent focus-visible:outline-none focus-visible:underline"
+          className="transition-colors group-hover:text-foreground/60 focus-visible:outline-none focus-visible:underline"
         >
           {title}
         </Link>
