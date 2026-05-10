@@ -38,6 +38,25 @@ export function stripAndDecode(input: string | null | undefined): string {
 }
 
 /**
+ * Convert article HTML into plain text suitable for text-to-speech,
+ * preserving paragraph boundaries as `\n\n` so a synthesizer can chunk
+ * on the editorial cadence. Block-level elements that imply a pause
+ * (p, br, h1-h6, li, blockquote, figcaption) are mapped to newlines
+ * before the tag-stripping pass; the result keeps natural pauses
+ * without leaking any markup into the spoken output.
+ */
+export function htmlToSpeechText(input: string | null | undefined): string {
+  if (!input) return "";
+  const withBreaks = input
+    .replace(/<\/(p|h[1-6]|li|blockquote|figcaption|div)>/gi, "\n\n")
+    .replace(/<br\s*\/?>(\n)?/gi, "\n");
+  return decode(withBreaks.replace(/<[^>]*>/g, ""))
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
  * Rewrite anchor `href` values that point at therealdeal.com article
  * URLs (`/<sector>/YYYY/MM/DD/<slug>/`, with or without the canonical
  * domain prefix) so they target this app's `/article/<slug>` route

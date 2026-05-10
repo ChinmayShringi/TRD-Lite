@@ -29,7 +29,11 @@ import {
 } from "@/src/lib/fragments";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
 import { getPostForMetadata, stripHtml } from "@/src/lib/seo";
-import { decodeText, rewriteTrdArticleLinks } from "@/src/lib/text";
+import {
+  decodeText,
+  htmlToSpeechText,
+  rewriteTrdArticleLinks,
+} from "@/src/lib/text";
 
 interface ArticlePageData {
   post: PostDetail | null;
@@ -137,7 +141,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // the inline "Read more" embed and any other internal links route
   // through this app instead of bouncing the reader to therealdeal.com.
   const safeHtml = rewriteTrdArticleLinks(post.contentHtml);
-  const spokenText = stripHtml(post.contentHtml);
+  const spokenText = htmlToSpeechText(post.contentHtml);
 
   // JSON-LD NewsArticle for richer SERP entries. Per plan.md 9.5 SEO #2
   // we expose the structured data on the article page so search
