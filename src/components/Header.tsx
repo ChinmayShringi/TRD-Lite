@@ -78,14 +78,14 @@ export async function Header() {
         <div className="flex flex-col items-center justify-center text-center">
           <Link
             href="/"
-            aria-label="TheUnRealDeal home"
+            aria-label="TheRealDeal home"
             className="font-heading font-bold leading-none text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:underline"
           >
             <span className="text-3xl uppercase tracking-[0.08em] lg:hidden">
               TRD
             </span>
             <span className="hidden text-[2.25rem] tracking-tight lg:inline">
-              TheUnRealDeal
+              TheRealDeal
             </span>
           </Link>
           <p className="mt-1 font-sans text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground">

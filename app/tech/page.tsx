@@ -35,7 +35,7 @@ const STACK: SpecRow[] = [
   { label: "API layer", value: "GraphQL Yoga at /api/graphql, hand-written SDL" },
   { label: "Database", value: "Neon Postgres (serverless), Drizzle ORM + relational queries" },
   { label: "Sync", value: "Cron-driven WordPress REST mirror (?_embed=1)" },
-  { label: "Hosting", value: "Vercel Fluid Compute, */5 cron, cron-token-gated /api/sync" },
+  { label: "Hosting", value: "Vercel Fluid Compute, cron-token-gated /api/sync (cron disabled on the free tier; manual or admin-triggered)" },
   { label: "Tests", value: "Vitest (unit + integration), Playwright + axe-core (e2e + a11y)" },
   { label: "CI", value: "GitHub Actions: lint, typecheck, codegen check, vitest, playwright" },
 ];
@@ -112,8 +112,9 @@ export default function TechPage() {
           <li>
             <strong className="font-semibold">Postgres mirror.</strong> The
             durable cache. WordPress is the source of truth; Neon Postgres is
-            the served-from store. The site never reads from
-            therealdeal.com at request time.
+            the served-from store. The frontend never calls WordPress
+            directly, which keeps page requests fast and protects the app
+            from upstream API latency or temporary WordPress failures.
           </li>
           <li>
             <strong className="font-semibold">Next.js Data Cache.</strong>{" "}
@@ -151,10 +152,19 @@ export default function TechPage() {
           WordPress to Postgres
         </SectionRule>
         <p className="font-heading text-lg leading-relaxed text-foreground">
-          A Vercel Cron hits <Code>/api/sync</Code> every five minutes. The
-          handler is bearer-token gated by <Code>SYNC_TOKEN</Code> so only
-          Vercel&rsquo;s scheduler (or an authenticated admin) can trigger it.
-          The pipeline is deliberately boring:
+          The handler at <Code>/api/sync</Code> is bearer-token gated by{" "}
+          <Code>SYNC_TOKEN</Code> so only an authenticated trigger
+          (scheduler or admin) can run it. A Vercel Cron entry is wired
+          for a <Code>*/5 * * * *</Code> tick, but is currently{" "}
+          <strong className="font-semibold">disabled on this deployment</strong>{" "}
+          to stay inside the free Hobby tier&rsquo;s budget envelope - cron
+          minutes, function invocations, and Postgres compute all bill against
+          the same allowance, and a 5-minute tick during idle review traffic
+          is pure waste. Re-enabling is a one-line change in{" "}
+          <Code>vercel.json</Code> when promoted to Pro; until then the same
+          pipeline is reachable via the admin force-sync page (basic-auth
+          gated) or a direct authenticated POST. The pipeline itself is
+          deliberately boring:
         </p>
         <ul className="ml-6 flex list-disc flex-col gap-2 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
           <li>
@@ -231,8 +241,11 @@ export default function TechPage() {
             flash of the wrong theme.
           </li>
           <li>
-            WCAG 2.1 AA target. Playwright + axe-core run as part of the e2e
-            job; a serious or critical violation fails CI.
+            WCAG-conscious accessibility target (working toward 2.1 AA).
+            Playwright + axe-core run as part of the e2e job; a serious or
+            critical violation fails CI. Articles also expose a Web Speech
+            API &ldquo;Listen&rdquo; control so the body copy is consumable
+            without reading.
           </li>
         </ul>
       </section>
@@ -296,6 +309,15 @@ export default function TechPage() {
             CSP debugging, repeated typecheck-build-test loops.
           </li>
           <li>
+            Project documentation lives in an Obsidian vault outside the
+            repo and is indexed for vector-embedding search, so prior
+            decisions, brief excerpts, and design references can be
+            retrieved by meaning instead of filename. The agent reads from
+            that vault when context is needed and writes new decisions back
+            into it, so the knowledge base compounds across sessions
+            instead of resetting with each conversation.
+          </li>
+          <li>
             Not used to invent design direction. <Code>.impeccable.md</Code>{" "}
             captures the editorial reference set (WSJ, NYT, FT) and
             anti-references (TRD red sans-serif, generic SaaS marketing pages,
@@ -325,6 +347,25 @@ export default function TechPage() {
             of the default stdout.
           </li>
         </ul>
+      </section>
+
+      <section
+        aria-labelledby="attribution-heading"
+        className="flex flex-col gap-3 border-t border-border pt-8"
+      >
+        <SectionRule label="Attribution" id="attribution-heading" />
+        <p className="font-heading text-base leading-relaxed text-muted-foreground">
+          Source content belongs to{" "}
+          <Link
+            href="https://therealdeal.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-4 transition-colors hover:text-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          >
+            The Real Deal
+          </Link>
+          . This demo links each article back to its original canonical URL.
+        </p>
       </section>
     </article>
   );

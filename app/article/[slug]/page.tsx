@@ -18,6 +18,7 @@ import { notFound } from "next/navigation";
 import { ArticleCard } from "@/src/components/ArticleCard";
 import { AuthorByline } from "@/src/components/AuthorByline";
 import { FeaturedImage } from "@/src/components/FeaturedImage";
+import { ListenButton } from "@/src/components/ListenButton";
 import { SectorChip } from "@/src/components/SectorChip";
 import {
   ArticlePageQuery,
@@ -136,6 +137,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // the inline "Read more" embed and any other internal links route
   // through this app instead of bouncing the reader to therealdeal.com.
   const safeHtml = rewriteTrdArticleLinks(post.contentHtml);
+  const spokenText = stripHtml(post.contentHtml);
 
   // JSON-LD NewsArticle for richer SERP entries. Per plan.md 9.5 SEO #2
   // we expose the structured data on the article page so search
@@ -187,6 +189,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       </header>
 
       <FeaturedImage media={post.featuredMedia} variant="detail" priority />
+
+      <ListenButton text={spokenText} title={title} />
 
       <div
         className="article-prose"
