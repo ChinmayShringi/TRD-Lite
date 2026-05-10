@@ -76,7 +76,8 @@ export function MobileDrawer({ sectors }: MobileDrawerProps) {
     };
   }, [open]);
 
-  function setThemeMode(next: ThemeMode): void {
+  function toggleTheme(): void {
+    const next: ThemeMode = theme === "dark" ? "light" : "dark";
     setTheme(next);
     const root = document.documentElement;
     if (next === "dark") root.classList.add("dark");
@@ -160,7 +161,7 @@ export function MobileDrawer({ sectors }: MobileDrawerProps) {
           {sectors.length > 0 ? (
             <div className="flex flex-col gap-3">
               <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.32em] text-white/50">
-                Sectors
+                Categories
               </p>
               <ul className="flex flex-col gap-3">
                 {sectors.map((s) => (
@@ -180,38 +181,29 @@ export function MobileDrawer({ sectors }: MobileDrawerProps) {
         </nav>
 
         <div className="border-t border-white/15 px-6 py-5">
-          <div
-            role="group"
-            aria-label="Theme"
-            className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/5 p-1"
+          <button
+            type="button"
+            aria-label={
+              mounted && theme === "dark"
+                ? "Switch to light theme"
+                : "Switch to dark theme"
+            }
+            title={
+              mounted && theme === "dark"
+                ? "Switch to light theme"
+                : "Switch to dark theme"
+            }
+            onClick={toggleTheme}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
           >
-            <button
-              type="button"
-              aria-label="Switch to dark theme"
-              aria-pressed={mounted && theme === "dark"}
-              onClick={() => setThemeMode("dark")}
-              className={`flex h-8 w-12 items-center justify-center rounded-full transition-colors ${
-                mounted && theme === "dark"
-                  ? "bg-white text-black"
-                  : "text-white/70 hover:text-white"
-              }`}
-            >
-              <Moon className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              aria-label="Switch to light theme"
-              aria-pressed={mounted && theme === "light"}
-              onClick={() => setThemeMode("light")}
-              className={`flex h-8 w-12 items-center justify-center rounded-full transition-colors ${
-                mounted && theme === "light"
-                  ? "bg-white text-black"
-                  : "text-white/70 hover:text-white"
-              }`}
-            >
-              <Sun className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
+            <span suppressHydrationWarning className="flex">
+              {mounted && theme === "dark" ? (
+                <Sun className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Moon className="h-4 w-4" aria-hidden="true" />
+              )}
+            </span>
+          </button>
         </div>
       </aside>
     </>
