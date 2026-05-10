@@ -14,7 +14,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { AuthorByline } from "./AuthorByline";
 import type { PostCard as PostCardData } from "@/src/lib/fragments";
-import { stripHtml } from "@/src/lib/seo";
 import { decodeText } from "@/src/lib/text";
 
 export const EDITORS_CHOICE_SLUG =

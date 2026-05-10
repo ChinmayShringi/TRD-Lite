@@ -1,26 +1,24 @@
 /**
- * Site header. Three-band editorial masthead:
+ * Site header. TRD-style three-column masthead:
  *
- *   ┌──────────────────────────────────────────────┐
- *   │  THURSDAY, MAY 9 2026          (date strip)   │
- *   ├──────────────────────────────────────────────┤
- *   │  TRD LITE      [search] [Categories ▾]        │
- *   └──────────────────────────────────────────────┘
+ *   ┌──────────────────────────────────────────────────────┐
+ *   │  THURSDAY, MAY 9 2026                  (date strip)   │
+ *   ├──────────────────────────────────────────────────────┤
+ *   │  ☰ ⌕            TRD LITE              [theme toggle]  │
+ *   │                  REAL ESTATE NEWS                     │
+ *   └──────────────────────────────────────────────────────┘
  *
- * The flat opaque background and double hairline are deliberate: the
- * site is a publication, not an app, and the masthead should feel
- * printed rather than floating. No backdrop-blur (anti-reference per
- * `.impeccable.md`). The theme toggle has been demoted to the footer
- * so it stops competing with editorial controls for masthead space.
+ * Hamburger opens a left-slide drawer that carries primary nav and
+ * the sector list. Search is a direct link (kept on the masthead so
+ * it's reachable without opening the drawer). Wordmark is centered.
  *
- * Async server component: the Categories dropdown receives a
- * server-fetched sector list so the client ships zero GraphQL traffic
- * for menu data.
+ * Distinct from TRD's red sans-serif wordmark per `.impeccable.md`
+ * anti-references: layout is borrowed, brand identity is not.
  */
 import Link from "next/link";
 
-import { HeaderCategories } from "./HeaderCategories";
 import { HeaderSearch } from "./HeaderSearch";
+import { MobileDrawer } from "./MobileDrawer";
 import { ThemeToggle } from "./ThemeToggle";
 import { gqlFetch } from "@/src/lib/graphql-fetch";
 
@@ -39,9 +37,6 @@ interface SectorsForHeader {
 
 function formatToday(): string {
   const now = new Date();
-  // Render server-side in the publication's local timezone (NYC) so
-  // the date strip reads as a newsroom dateline rather than the
-  // server's UTC clock.
   return now.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -52,9 +47,6 @@ function formatToday(): string {
 }
 
 export async function Header() {
-  // Sector list is stable in the corpus; cache for an hour and
-  // invalidate via the `sectors` tag (the sync handler already
-  // revalidates this tag on each successful run).
   let sectors: { slug: string; name: string }[] = [];
   try {
     const data = await gqlFetch<SectorsForHeader>(
@@ -66,8 +58,7 @@ export async function Header() {
       a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
     );
   } catch {
-    // The dropdown is decorative; if the GraphQL call fails we hide it
-    // rather than break the masthead.
+    // Drawer hides the sector list when empty.
   }
 
   const dateline = formatToday();
@@ -79,16 +70,23 @@ export async function Header() {
           {dateline}
         </p>
       </div>
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-        <Link
-          href="/"
-          className="font-heading text-3xl font-bold uppercase tracking-[0.04em] text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:underline sm:text-[2rem]"
-        >
-          TRD Lite
-        </Link>
-        <div className="flex items-center gap-2">
+      <div className="mx-auto grid max-w-6xl grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-4 sm:px-6">
+        <div className="flex items-center gap-1">
+          <MobileDrawer sectors={sectors} />
           <HeaderSearch />
-          <HeaderCategories sectors={sectors} />
+        </div>
+        <div className="flex flex-col items-center justify-center text-center">
+          <Link
+            href="/"
+            className="font-heading text-3xl font-bold uppercase tracking-[0.06em] leading-none text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:underline sm:text-[2.25rem]"
+          >
+            TRD Lite
+          </Link>
+          <p className="mt-1 font-sans text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground">
+            Real estate news
+          </p>
+        </div>
+        <div className="flex items-center justify-end">
           <ThemeToggle />
         </div>
       </div>

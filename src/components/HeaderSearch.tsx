@@ -13,7 +13,7 @@ export function HeaderSearch() {
       href="/search"
       aria-label="Search"
       title="Search"
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+      className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
     >
       <Search className="h-4 w-4" aria-hidden="true" />
     </Link>
