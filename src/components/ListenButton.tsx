@@ -49,16 +49,43 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
 // system voices for English news copy; Google/Microsoft network voices
 // are the next best on Chromium and Edge; everything else is a last
 // resort to avoid the robotic default fallback.
+// Strict allowlist of natural-sounding US English female voices.
+// Order is preference. We deliberately do NOT fall through to a
+// generic en-US voice: the platform-default voice on most devices is
+// the robotic eSpeak / Microsoft David variant, which undermines the
+// "human narrator" feel we want for editorial copy. If none of these
+// match, the caller hides the Listen control entirely.
 function pickVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  // The "Online" suffix on Edge ships as "Microsoft Jenny Online
+  // (Natural) - English (United States)". `includes` matches the
+  // common substring across browser variants.
+  const enUsFemaleHints = [
+    "female",
+    "samantha",
+    "jenny",
+    "aria",
+    "zira",
+    "ava",
+    "nova",
+    "sonia",
+  ];
   return (
-    voices.find((v) => v.name.includes("Samantha")) ||
-    voices.find((v) => v.name.includes("Daniel")) ||
-    voices.find((v) => v.name.includes("Google US English")) ||
-    voices.find((v) => v.name.includes("Microsoft Jenny")) ||
-    voices.find((v) => v.name.includes("Microsoft Guy")) ||
-    voices.find((v) => v.name.includes("Microsoft") && v.lang.startsWith("en")) ||
-    voices.find((v) => v.lang === "en-US") ||
-    voices.find((v) => v.lang.startsWith("en")) ||
+    voices.find((v) => v.name.includes("Microsoft Jenny Online")) ||
+    voices.find((v) => v.name.includes("Microsoft Aria Online")) ||
+    voices.find(
+      (v) => v.name.includes("Samantha") && v.lang.startsWith("en"),
+    ) ||
+    voices.find(
+      (v) =>
+        v.name.includes("Google US English") &&
+        v.name.toLowerCase().includes("female"),
+    ) ||
+    voices.find((v) => v.name.includes("Microsoft Zira")) ||
+    voices.find((v) => {
+      if (v.lang !== "en-US") return false;
+      const lower = v.name.toLowerCase();
+      return enUsFemaleHints.some((hint) => lower.includes(hint));
+    }) ||
     null
   );
 }
@@ -108,23 +135,30 @@ function splitForSpeech(input: string): string[] {
 }
 
 export function ListenButton({ text, title }: ListenButtonProps) {
-  const [supported, setSupported] = useState(false);
+  // `null` while we're still resolving voice availability; once
+  // resolved, `false` means hide the button (no suitable voice on
+  // this device) and `true` means show it. Three-state avoids the
+  // flicker of mounting the button and then yanking it once voices
+  // arrive on Chromium.
+  const [available, setAvailable] = useState<boolean | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const queueRef = useRef<SpeechSynthesisUtterance[]>([]);
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setAvailable(false);
       return;
     }
-    setSupported(true);
-    // Warm the voice list at mount; on Chromium the first call is
-    // empty and `voiceschanged` fires shortly after, so we want the
-    // preferred voice cached before the user clicks Play.
+    let cancelled = false;
     loadVoices().then((voices) => {
-      voiceRef.current = pickVoice(voices);
+      if (cancelled) return;
+      const picked = pickVoice(voices);
+      voiceRef.current = picked;
+      setAvailable(picked !== null);
     });
     return () => {
+      cancelled = true;
       window.speechSynthesis.cancel();
     };
   }, []);
@@ -137,6 +171,13 @@ export function ListenButton({ text, title }: ListenButtonProps) {
     if (!voiceRef.current) {
       const voices = await loadVoices();
       voiceRef.current = pickVoice(voices);
+    }
+    if (!voiceRef.current) {
+      // Refuse to fall back to the platform default robotic voice.
+      // The button is normally hidden when no preferred voice is
+      // available; this guards a race where the user clicks before
+      // the voice list resolved.
+      return;
     }
 
     const fullText = title ? `${title}.\n\n${text}` : text;
@@ -151,8 +192,8 @@ export function ListenButton({ text, title }: ListenButtonProps) {
       const u = new SpeechSynthesisUtterance(chunk);
       if (voiceRef.current) u.voice = voiceRef.current;
       u.lang = "en-US";
-      u.rate = 0.9;
-      u.pitch = 0.92;
+      u.rate = 0.88;
+      u.pitch = 1.02;
       u.volume = 1;
       if (idx === chunks.length - 1) {
         u.onend = () => setStatus("idle");
@@ -179,7 +220,9 @@ export function ListenButton({ text, title }: ListenButtonProps) {
     setStatus("playing");
   }
 
-  if (!supported) return null;
+  // Render nothing while we're still checking, and nothing if no
+  // suitable voice was found.
+  if (available !== true) return null;
 
   const playing = status === "playing";
   const paused = status === "paused";
