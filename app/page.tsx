@@ -6,9 +6,11 @@
  */
 import type { Metadata } from "next";
 
-import { ArticleCard } from "@/src/components/ArticleCard";
-import { ArticleHero } from "@/src/components/ArticleHero";
+import { ColumnStory } from "@/src/components/ColumnStory";
 import { InfiniteArticleList } from "@/src/components/InfiniteArticleList";
+import { LeadStory } from "@/src/components/LeadStory";
+import { RightRailItem } from "@/src/components/RightRailItem";
+import { SectionRule } from "@/src/components/SectionRule";
 import { SectorChip } from "@/src/components/SectorChip";
 import type { HomePageQuery as HomePageQueryResult } from "@/src/graphql/__generated__/graphql";
 import {
@@ -103,13 +105,16 @@ export default async function HomePage() {
   }
 
   const heroPost = edges[0]?.node;
-  // Front-page tiers: hero anchors the page, two "lead" cards sit
-  // below it as the second-tier stories, and the rest fall into the
-  // dense "More stories" brief list. The split lives here (rather
-  // than in InfiniteArticleList) so the server-rendered first paint
-  // already shows the editorial hierarchy without a flicker.
-  const leadEdges = edges.slice(1, 3);
-  const briefEdges = edges.slice(3);
+  // Newspaper tiers, top to bottom:
+  //   slot 0     - lead story (left column above the fold)
+  //   slots 1-3  - right-rail "Top stories" stack
+  //   slots 4-6  - "Latest reporting" three-column band
+  //   slots 7+   - dense "More stories" brief list
+  // The split lives here so the server-rendered first paint already
+  // shows the editorial hierarchy without a flicker.
+  const railPosts = edges.slice(1, 4).map((e) => e.node);
+  const columnPosts = edges.slice(4, 7).map((e) => e.node);
+  const briefEdges = edges.slice(7);
   const initialEndCursor = data.posts.pageInfo?.endCursor ?? null;
   const initialHasNextPage = data.posts.pageInfo?.hasNextPage ?? false;
 
@@ -128,35 +133,55 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-10 sm:px-6 lg:py-14">
-      <section aria-labelledby="hero-heading" className="flex flex-col gap-4">
-        <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
-          <h1
-            id="hero-heading"
-            className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
-          >
-            Top story
-          </h1>
-        </header>
-        {heroPost ? <ArticleHero post={heroPost} /> : null}
-      </section>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-8 sm:px-6 lg:py-12">
+      {heroPost ? (
+        <section aria-labelledby="front-page-heading" className="flex flex-col gap-8">
+          <SectionRule label="Front Page" id="front-page-heading">
+            Today&rsquo;s edition
+          </SectionRule>
+          <div className="grid gap-10 lg:grid-cols-[2fr_1fr] lg:gap-12 lg:divide-x lg:divide-border">
+            <LeadStory post={heroPost} className="lg:pr-12" />
+            {railPosts.length > 0 ? (
+              <aside
+                aria-label="Top stories"
+                className="flex flex-col lg:pl-12"
+              >
+                <h2 className="font-sans text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground pb-3 border-b border-foreground/80">
+                  Top stories
+                </h2>
+                <ul className="flex flex-col divide-y divide-border">
+                  {railPosts.map((p) => (
+                    <li key={p.id} className="py-5 first:pt-5">
+                      <RightRailItem post={p} />
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
-      {leadEdges.length > 0 ? (
+      {columnPosts.length > 0 ? (
         <section
-          aria-labelledby="leads-heading"
+          aria-labelledby="latest-reporting-heading"
           className="flex flex-col gap-6"
         >
-          <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
-            <h2
-              id="leads-heading"
-              className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
-            >
-              Lead stories
-            </h2>
-          </header>
-          <div className="grid gap-10 sm:grid-cols-2">
-            {leadEdges.map((edge) => (
-              <ArticleCard key={edge.node.id} post={edge.node} />
+          <SectionRule label="Latest reporting" id="latest-reporting-heading" />
+          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-border">
+            {columnPosts.map((p, i) => (
+              <div
+                key={p.id}
+                className={
+                  i === 0
+                    ? "lg:pr-8"
+                    : i === columnPosts.length - 1
+                      ? "lg:pl-8"
+                      : "lg:px-8"
+                }
+              >
+                <ColumnStory post={p} />
+              </div>
             ))}
           </div>
         </section>
@@ -169,7 +194,7 @@ export default async function HomePage() {
         >
           <h2
             id="sectors-heading"
-            className="font-heading text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+            className="font-sans text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground"
           >
             Browse by sector
           </h2>
@@ -183,15 +208,8 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <section aria-labelledby="latest-heading" className="flex flex-col gap-4">
-        <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
-          <h2
-            id="latest-heading"
-            className="font-heading text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground"
-          >
-            More stories
-          </h2>
-        </header>
+      <section aria-labelledby="more-stories-heading" className="flex flex-col gap-6">
+        <SectionRule label="More stories" id="more-stories-heading" />
         <InfiniteArticleList
           initialEdges={briefEdges}
           initialHasNextPage={initialHasNextPage}
