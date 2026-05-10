@@ -55,7 +55,7 @@ export function EditorsChoice({ post, youtubeId, className }: EditorsChoiceProps
   return (
     <article
       className={cn(
-        "group grid gap-8 lg:grid-cols-[3fr_2fr] lg:items-stretch lg:gap-12 lg:divide-x lg:divide-border",
+        "grid gap-8 lg:grid-cols-[3fr_2fr] lg:items-stretch lg:gap-12 lg:divide-x lg:divide-border",
         className,
       )}
     >
@@ -94,7 +94,7 @@ export function EditorsChoice({ post, youtubeId, className }: EditorsChoiceProps
         <h2 className="font-heading text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
           <Link
             href={href}
-            className="transition-colors group-hover:text-foreground/60 focus-visible:outline-none focus-visible:underline"
+            className="transition-colors hover:text-foreground/60 focus-visible:outline-none focus-visible:underline"
           >
             {title}
           </Link>
