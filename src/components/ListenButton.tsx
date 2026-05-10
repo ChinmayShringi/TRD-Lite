@@ -54,6 +54,8 @@ function pickVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null 
     voices.find((v) => v.name.includes("Samantha")) ||
     voices.find((v) => v.name.includes("Daniel")) ||
     voices.find((v) => v.name.includes("Google US English")) ||
+    voices.find((v) => v.name.includes("Microsoft Jenny")) ||
+    voices.find((v) => v.name.includes("Microsoft Guy")) ||
     voices.find((v) => v.name.includes("Microsoft") && v.lang.startsWith("en")) ||
     voices.find((v) => v.lang === "en-US") ||
     voices.find((v) => v.lang.startsWith("en")) ||
@@ -150,7 +152,7 @@ export function ListenButton({ text, title }: ListenButtonProps) {
       if (voiceRef.current) u.voice = voiceRef.current;
       u.lang = "en-US";
       u.rate = 0.9;
-      u.pitch = 0.95;
+      u.pitch = 0.92;
       u.volume = 1;
       if (idx === chunks.length - 1) {
         u.onend = () => setStatus("idle");
