@@ -78,9 +78,15 @@ export async function Header() {
         <div className="flex flex-col items-center justify-center text-center">
           <Link
             href="/"
-            className="font-heading text-3xl font-bold uppercase tracking-[0.06em] leading-none text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:underline sm:text-[2.25rem]"
+            aria-label="TheUnRealDeal home"
+            className="font-heading font-bold leading-none text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:underline"
           >
-            TRD Lite
+            <span className="text-3xl uppercase tracking-[0.08em] lg:hidden">
+              TRD
+            </span>
+            <span className="hidden text-[2.25rem] tracking-tight lg:inline">
+              TheUnRealDeal
+            </span>
           </Link>
           <p className="mt-1 font-sans text-[10px] font-semibold uppercase tracking-[0.32em] text-muted-foreground">
             Real estate news
