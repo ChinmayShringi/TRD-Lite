@@ -50,29 +50,31 @@ function buildYoutubeEmbed(id: string): string {
 
 export function EditorsChoice({ post, youtubeId, className }: EditorsChoiceProps) {
   const title = decodeText(post.title);
-  const deck = stripHtml(post.excerpt).slice(0, 220);
   const href = `/article/${post.slug}`;
 
   return (
     <article
       className={cn(
-        "group grid gap-8 lg:grid-cols-[3fr_2fr] lg:items-start lg:gap-12 lg:divide-x lg:divide-border",
+        "group grid gap-8 lg:grid-cols-[3fr_2fr] lg:items-stretch lg:gap-12 lg:divide-x lg:divide-border",
         className,
       )}
     >
       <div className="lg:pr-12">
         {youtubeId ? (
-          <div className="relative w-full overflow-hidden rounded-sm bg-muted">
-            <div className="aspect-video w-full">
-              <iframe
-                src={buildYoutubeEmbed(youtubeId)}
-                title={title}
-                loading="lazy"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen
-                className="absolute inset-0 h-full w-full"
-              />
-            </div>
+          // Mobile: aspect-video gives the iframe a sane height.
+          // lg: drop the fixed aspect ratio and stretch to the row's
+          // height (set by the right column's content via items-stretch
+          // on the parent grid) so the video matches the text block
+          // beside it instead of overshooting it.
+          <div className="relative aspect-video w-full overflow-hidden rounded-sm bg-muted lg:aspect-auto lg:h-full lg:min-h-[18rem]">
+            <iframe
+              src={buildYoutubeEmbed(youtubeId)}
+              title={title}
+              loading="lazy"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full"
+            />
           </div>
         ) : post.featuredMedia ? (
           // Fallback to a still poster so the tile keeps weight even if
@@ -80,16 +82,12 @@ export function EditorsChoice({ post, youtubeId, className }: EditorsChoiceProps
           <Link
             href={href}
             aria-label={title}
-            className="block overflow-hidden rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4"
-          >
-            <div
-              className="aspect-video w-full bg-cover bg-center"
-              style={{ backgroundImage: `url(${post.featuredMedia.url})` }}
-            />
-          </Link>
+            className="block aspect-video overflow-hidden rounded-sm bg-cover bg-center lg:aspect-auto lg:h-full lg:min-h-[18rem]"
+            style={{ backgroundImage: `url(${post.featuredMedia.url})` }}
+          />
         ) : null}
       </div>
-      <div className="flex flex-col gap-4 lg:pl-12">
+      <div className="flex flex-col justify-center gap-4 lg:pl-12">
         <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
           Editor&rsquo;s choice
         </span>
@@ -101,11 +99,6 @@ export function EditorsChoice({ post, youtubeId, className }: EditorsChoiceProps
             {title}
           </Link>
         </h2>
-        {deck ? (
-          <p className="font-heading text-base italic leading-snug text-muted-foreground sm:text-lg">
-            {deck}
-          </p>
-        ) : null}
         <AuthorByline author={post.author} publishedAt={post.publishedAt} />
         <Link
           href={href}
