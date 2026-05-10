@@ -1,0 +1,331 @@
+/**
+ * "How this was built" colophon. A long-form read explaining the
+ * stack, caching layers, sync strategy, and tradeoffs - written for
+ * the same reviewers who set the take-home brief, so it answers the
+ * questions they actually asked (architecture, caching, AI tooling)
+ * with concrete code paths and decisions.
+ *
+ * No GraphQL fetch here: the content is hand-authored editorial copy.
+ * Lives at /tech and is linked from the masthead drawer + footer.
+ */
+import type { Metadata } from "next";
+import Link from "next/link";
+
+import { SectionRule } from "@/src/components/SectionRule";
+
+export const metadata: Metadata = {
+  title: "How this was built",
+  description:
+    "Stack, caching layers, sync strategy, GraphQL design, and tradeoffs behind TRD Lite - the take-home demo for The Real Deal.",
+  alternates: { canonical: "/tech" },
+};
+
+const REPO_URL = "https://github.com/ChinmayShringi/TRD-Lite";
+const LIVE_URL = "https://trd-lite-takehome.vercel.app";
+
+interface SpecRow {
+  label: string;
+  value: React.ReactNode;
+}
+
+const STACK: SpecRow[] = [
+  { label: "Framework", value: "Next.js 15 (App Router, React 19)" },
+  { label: "Language", value: "TypeScript, strict mode" },
+  { label: "Styling", value: "Tailwind v4, OKLCH tokens, Source Serif 4 + Inter" },
+  { label: "API layer", value: "GraphQL Yoga at /api/graphql, hand-written SDL" },
+  { label: "Database", value: "Neon Postgres (serverless), Drizzle ORM + relational queries" },
+  { label: "Sync", value: "Cron-driven WordPress REST mirror (?_embed=1)" },
+  { label: "Hosting", value: "Vercel Fluid Compute, */5 cron, cron-token-gated /api/sync" },
+  { label: "Tests", value: "Vitest (unit + integration), Playwright + axe-core (e2e + a11y)" },
+  { label: "CI", value: "GitHub Actions: lint, typecheck, codegen check, vitest, playwright" },
+];
+
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code className="rounded bg-muted px-1.5 py-0.5 font-sans text-sm">
+      {children}
+    </code>
+  );
+}
+
+export default function TechPage() {
+  return (
+    <article className="mx-auto flex w-full max-w-3xl flex-col gap-12 px-4 py-10 sm:px-6 lg:py-14">
+      <header className="flex flex-col gap-6">
+        <SectionRule label="Colophon">A take-home build log</SectionRule>
+        <h1 className="font-heading text-4xl font-bold leading-tight tracking-tight text-foreground sm:text-5xl">
+          How this was built
+        </h1>
+        <p className="max-w-prose font-heading text-lg italic leading-snug text-muted-foreground sm:text-xl">
+          The brief asked for a small news site mirroring The Real Deal&rsquo;s
+          WordPress feed through a custom GraphQL layer, with judgment calls
+          around caching, performance, and architecture. This page walks the
+          decisions that actually got shipped.
+        </p>
+        <p className="font-sans text-sm text-muted-foreground">
+          <Link
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          >
+            Source on GitHub
+          </Link>
+          <span className="px-2 text-border">/</span>
+          <Link
+            href={LIVE_URL}
+            className="underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          >
+            Live deployment
+          </Link>
+        </p>
+      </header>
+
+      <section aria-labelledby="stack-heading" className="flex flex-col gap-5">
+        <SectionRule label="Stack" id="stack-heading" />
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-[max-content_1fr]">
+          {STACK.map((row) => (
+            <div
+              key={row.label}
+              className="contents border-b border-border pb-3 last:border-b-0"
+            >
+              <dt className="font-sans text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                {row.label}
+              </dt>
+              <dd className="font-heading text-base leading-snug text-foreground">
+                {row.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <section aria-labelledby="caching-heading" className="flex flex-col gap-5">
+        <SectionRule label="Caching" id="caching-heading">
+          The brief&rsquo;s headline question
+        </SectionRule>
+        <p className="font-heading text-lg leading-relaxed text-foreground">
+          Caching is layered, not single-source. Each layer has a different
+          cost-to-freshness tradeoff, and they compose:
+        </p>
+        <ol className="ml-6 flex list-decimal flex-col gap-3 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
+          <li>
+            <strong className="font-semibold">Postgres mirror.</strong> The
+            durable cache. WordPress is the source of truth; Neon Postgres is
+            the served-from store. The site never reads from
+            therealdeal.com at request time.
+          </li>
+          <li>
+            <strong className="font-semibold">Next.js Data Cache.</strong>{" "}
+            Every server-component GraphQL call uses{" "}
+            <Code>fetch(&hellip;, &#123; next: &#123; tags, revalidate: 60-300 &#125; &#125;)</Code>.
+            Reads are served from Vercel&rsquo;s edge data cache for the
+            revalidate window without re-running the resolver or hitting
+            Postgres.
+          </li>
+          <li>
+            <strong className="font-semibold">Tag invalidation on write.</strong>{" "}
+            After every successful sync, /api/sync calls{" "}
+            <Code>revalidateTag(&apos;homepage&apos;)</Code> plus a per-slug{" "}
+            <Code>post:&lt;slug&gt;</Code> tag for each updated post. New
+            stories land within seconds of the cron tick rather than waiting
+            out the revalidate window.
+          </li>
+          <li>
+            <strong className="font-semibold">Per-request DataLoader.</strong>{" "}
+            For chatty resolvers (author, media, term) a DataLoader batches
+            inside a single GraphQL request to dedupe round trips. Drizzle
+            relational queries handle list pages, so DataLoader exists to
+            cover the long tail rather than carry the load.
+          </li>
+          <li>
+            <strong className="font-semibold">Browser layer.</strong> Next
+            prefetches <Code>&lt;Link&gt;</Code> targets in the viewport, so
+            navigation feels instant even though every page is dynamic.
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="sync-heading" className="flex flex-col gap-5">
+        <SectionRule label="Sync" id="sync-heading">
+          WordPress to Postgres
+        </SectionRule>
+        <p className="font-heading text-lg leading-relaxed text-foreground">
+          A Vercel Cron hits <Code>/api/sync</Code> every five minutes. The
+          handler is bearer-token gated by <Code>SYNC_TOKEN</Code> so only
+          Vercel&rsquo;s scheduler (or an authenticated admin) can trigger it.
+          The pipeline is deliberately boring:
+        </p>
+        <ul className="ml-6 flex list-disc flex-col gap-2 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
+          <li>
+            <strong className="font-semibold">Cursor.</strong> WordPress&rsquo;s{" "}
+            <Code>modified_after</Code> query parameter, advanced only after a
+            page commits. A 60-second overlap on each tick covers clock skew
+            between the WP host and Vercel.
+          </li>
+          <li>
+            <strong className="font-semibold">Order.</strong> Idempotent upserts
+            in dependency order: media, authors, terms, posts, post_terms.
+            Re-running a completed sync produces zero row changes.
+          </li>
+          <li>
+            <strong className="font-semibold">Sanitization on write.</strong>{" "}
+            Article HTML is run through a strict <Code>sanitize-html</Code>{" "}
+            allowlist before it ever reaches the database. The frontend
+            renders the stored HTML directly; trust is established once, at
+            the boundary, not at every render.
+          </li>
+          <li>
+            <strong className="font-semibold">Observability.</strong> Each run
+            inserts a <Code>sync_runs</Code> row with status, counts, and
+            notes. The public{" "}
+            <Link
+              href="/sync-status"
+              className="underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            >
+              sync-status page
+            </Link>{" "}
+            reads the last 20 rows; the admin force-sync page (basic-auth
+            gated) lets a reviewer trigger one without waiting on cron.
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="graphql-heading" className="flex flex-col gap-5">
+        <SectionRule label="GraphQL" id="graphql-heading">
+          Hand-written, not generated
+        </SectionRule>
+        <p className="font-heading text-lg leading-relaxed text-foreground">
+          The schema is one SDL file in the repo. Resolvers are thin wrappers
+          over Drizzle relational queries; pagination is cursor-based on{" "}
+          <Code>publishedAt|id</Code> base64-encoded so cursors are stable
+          across sorts. Frontend code never imports from <Code>src/db/</Code>
+          {" "}- it goes through <Code>lib/graphql-fetch.ts</Code> so the
+          boundary stays clean and a future client (mobile app, another
+          team&rsquo;s service) gets the same surface.
+        </p>
+        <p className="font-heading text-lg leading-relaxed text-foreground">
+          Operation types are generated via <Code>graphql-codegen</Code> and a{" "}
+          <Code>codegen:check</Code> step in CI fails the build if{" "}
+          <Code>__generated__/</Code> drifts from the SDL.
+        </p>
+      </section>
+
+      <section aria-labelledby="frontend-heading" className="flex flex-col gap-5">
+        <SectionRule label="Frontend" id="frontend-heading" />
+        <ul className="ml-6 flex list-disc flex-col gap-2 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
+          <li>
+            Server components everywhere a fetch is needed; client islands only
+            for true interactivity (theme toggle, drawer, debounced search,
+            infinite scroll).
+          </li>
+          <li>
+            Editorial design system per <Code>.impeccable.md</Code>: Source
+            Serif 4 carries headlines, Inter handles UI, accent is a verb
+            (focus rings, search affordances) rather than decoration.
+          </li>
+          <li>
+            Light + dark are first-class. The pre-hydration script in{" "}
+            <Code>app/layout.tsx</Code> reads the saved preference (or{" "}
+            <Code>prefers-color-scheme</Code>) before paint, so there is no
+            flash of the wrong theme.
+          </li>
+          <li>
+            WCAG 2.1 AA target. Playwright + axe-core run as part of the e2e
+            job; a serious or critical violation fails CI.
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="tradeoffs-heading" className="flex flex-col gap-5">
+        <SectionRule label="Tradeoffs" id="tradeoffs-heading">
+          What got cut, and why
+        </SectionRule>
+        <ul className="ml-6 flex list-disc flex-col gap-3 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
+          <li>
+            <strong className="font-semibold">No code-gen for resolvers.</strong>{" "}
+            Pothos would have given typed resolvers from a builder API; the
+            hand-written SDL was simpler for a take-home and easier to read in
+            review. At a larger surface area, the cost flips.
+          </li>
+          <li>
+            <strong className="font-semibold">No static prerender on the homepage.</strong>{" "}
+            The page reads through the in-process <Code>/api/graphql</Code>{" "}
+            handler, which is not running at build time.{" "}
+            <Code>force-dynamic</Code> plus the Data Cache shoulder the caching
+            role at request time - same end result, simpler build.
+          </li>
+          <li>
+            <strong className="font-semibold">Permissive CSP.</strong>{" "}
+            <Code>img-src https:</Code> and <Code>frame-src https:</Code> so
+            editorial markup (TRD CDN images, embedded YouTube) renders without
+            an allowlist of every CDN. A production hardening pass would
+            tighten host-by-host.
+          </li>
+          <li>
+            <strong className="font-semibold">Brand distance from TRD.</strong>{" "}
+            Layout is borrowed from WSJ/NYT/FT; the wordmark, palette, and type
+            system are intentionally not the TRD red sans-serif so the demo
+            never reads as a clone.
+          </li>
+          <li>
+            <strong className="font-semibold">No persisted operations.</strong>{" "}
+            Persisted-query infra is overkill for a single-client demo; a
+            real-world rollout would persist for security and bandwidth.
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="ai-heading" className="flex flex-col gap-5">
+        <SectionRule label="AI tooling" id="ai-heading">
+          How it was actually used
+        </SectionRule>
+        <p className="font-heading text-lg leading-relaxed text-foreground">
+          Built collaboratively with Claude Code. Architecture, schema, and
+          decisions are mine; the agent accelerated implementation, ran
+          test-and-audit passes, and helped keep the code surface tidy.
+        </p>
+        <ul className="ml-6 flex list-disc flex-col gap-2 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
+          <li>
+            Three-agent pattern per phase: implementer, auditor (tests +
+            requirement check), documenter (commit + readme).
+          </li>
+          <li>
+            Used for the unglamorous wins: schema migrations, sanitize-html
+            allowlist, codegen wiring, axe-core script, deploy verification,
+            CSP debugging, repeated typecheck-build-test loops.
+          </li>
+          <li>
+            Not used to invent design direction. <Code>.impeccable.md</Code>{" "}
+            captures the editorial reference set (WSJ, NYT, FT) and
+            anti-references (TRD red sans-serif, generic SaaS marketing pages,
+            crypto dashboards). Every design decision was checked against it.
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="next-heading" className="flex flex-col gap-5">
+        <SectionRule label="What I&rsquo;d do next" id="next-heading" />
+        <ul className="ml-6 flex list-disc flex-col gap-2 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
+          <li>
+            Tighten CSP per-host (the current <Code>https:</Code> wildcard is a
+            take-home concession).
+          </li>
+          <li>
+            Promote the in-process GraphQL fetch to a real network boundary so
+            list pages can statically prerender at build time and cache more
+            aggressively at the edge.
+          </li>
+          <li>
+            Persisted operations + per-operation rate limiting; today only the
+            sync handler is rate-protected (token gate).
+          </li>
+          <li>
+            Wire structured logging (pino) to Vercel&rsquo;s log drain instead
+            of the default stdout.
+          </li>
+        </ul>
+      </section>
+    </article>
+  );
+}

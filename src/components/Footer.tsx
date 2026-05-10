@@ -25,7 +25,19 @@ export function Footer() {
             .
           </p>
         </div>
-        <div className="flex gap-4 text-xs">
+        <div className="flex flex-wrap gap-4 text-xs">
+          <Link
+            href="/tech"
+            className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
+          >
+            How it&rsquo;s built
+          </Link>
+          <Link
+            href="/search"
+            className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"
+          >
+            Search
+          </Link>
           <Link
             href="/sync-status"
             className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:underline"

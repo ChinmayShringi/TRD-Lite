@@ -36,6 +36,7 @@ const PRIMARY_LINKS: PrimaryLink[] = [
   { label: "Home", href: "/" },
   { label: "Search", href: "/search" },
   { label: "Sync status", href: "/sync-status" },
+  { label: "How it’s built", href: "/tech" },
 ];
 
 export interface MobileDrawerProps {
