@@ -15,15 +15,35 @@ I wrote this README in first-person because I want the reviewer to see how I thi
 - **Cache:** Postgres is the durable cache for WordPress content; the Next.js Data Cache with tag-based revalidation is the presentation cache on top.
 - **Demo entrypoints:** `/sync-status`, `/api/graphql`, `/search?q=manhattan`, `/api/healthz`.
 
-A quick map of where each piece of the brief lives:
+Below I walk through each piece of the brief and where it lives in the code, so a reviewer can trace any requirement back to a file.
 
-- **Fetch content from the WordPress API.** Typed client at `src/lib/wp-client.ts` wraps `https://therealdeal.com/wp-json/wp/v2/posts`. It passes `?_embed=1` so author, media, and term data come back in one round trip, paginates with `?modified_after` for incremental pulls, and uses exponential backoff on 5xx responses. The sync orchestrator at `src/lib/sync.ts` is the only thing in the codebase that calls WordPress. User requests never touch it.
-- **Store/cache the data locally in a database.** Neon Postgres. Schema and migrations in `src/db/schema.ts` and `drizzle/`; tables I projected from WP: `posts`, `authors`, `media`, `terms`, `post_terms`, `sync_runs`. Each row keeps a `raw jsonb` column for the original WP payload so I can add columns later without re-syncing. The sync worker upserts idempotently in dependency order, one Drizzle transaction per 100-post page.
-- **Expose the data through a GraphQL API.** GraphQL Yoga mounted at `/api/graphql`. Hand-written SDL in `src/graphql/schema.ts`. Resolvers are thin wrappers over Drizzle relational queries, with a per-request DataLoader context as a fallback for chatty resolvers. Operations: `posts`, `post`, `postsByTerm`, `searchPosts`, `syncStatus`. Cursor pagination is base64-encoded `publishedAt|id`. GraphiQL is on in development.
-- **Use that GraphQL API to power the frontend.** Every page in `app/` fetches through `src/lib/graphql-fetch.ts`, which calls `/api/graphql` with `next: { tags, revalidate }`. I added a guard that prevents `app/` and `src/components/` from importing anything under `src/db/`, so the frontend cannot bypass the GraphQL layer. No Apollo Client or urql in the bundle; React Server Components do the fetching server-side.
-- **Homepage with at least 5 articles.** `app/page.tsx` renders a hero plus a 12-card grid, then keeps appending older stories on scroll using cursor-based pagination from the same GraphQL field.
-- **Basic article page.** `app/article/[slug]/page.tsx` is a semantic `<article>` with header, headline, byline, `<time datetime>`, featured image, sanitized body HTML, and related stories from the same primary sector. A small "Listen" control reads the article aloud through the Web Speech API.
-- **README with architecture, tradeoffs, caching, AI usage.** Architecture in section 4, data model in section 5, caching and sync in section 6, tradeoffs in section 11, AI tooling in section 12.
+### Fetch content from the WordPress API
+
+I wrote a typed client at `src/lib/wp-client.ts` that wraps `https://therealdeal.com/wp-json/wp/v2/posts`. It always passes `?_embed=1` so author, media, and term data come back in one round trip, paginates with `?modified_after` for incremental pulls, and uses exponential backoff on 5xx responses. The sync orchestrator at `src/lib/sync.ts` is the only thing in the codebase that ever calls WordPress. User requests never touch it.
+
+### Store/cache the data locally in a database
+
+I chose Neon Postgres as the durable local store. Schema and migrations live in `src/db/schema.ts` and `drizzle/`. The tables I projected from the WP shape: `posts`, `authors`, `media`, `terms`, `post_terms`, and `sync_runs`. Each row keeps a `raw jsonb` column for the original WP payload so I can add columns later without re-syncing. The sync worker upserts idempotently in dependency order (media, authors, terms, posts, post_terms), one Drizzle transaction per 100-post page.
+
+### Expose the data through a GraphQL API
+
+I implemented the GraphQL layer with GraphQL Yoga, mounted at `/api/graphql`. The schema is a hand-written SDL string in `src/graphql/schema.ts`. Resolvers are thin wrappers over Drizzle relational queries, with a per-request DataLoader context in `src/graphql/loaders.ts` as a fallback for any future chatty resolver. Operations: `posts`, `post`, `postsByTerm`, `searchPosts`, `syncStatus`. Cursor pagination is base64-encoded `publishedAt|id`. GraphiQL is enabled in development at `/api/graphql`.
+
+### Use that GraphQL API to power the frontend
+
+Every page in `app/` fetches through `src/lib/graphql-fetch.ts`, which calls `/api/graphql` with `next: { tags, revalidate }`. I added a lint-style guard that prevents `app/` and `src/components/` from importing anything under `src/db/`, so the frontend cannot bypass the GraphQL layer. There is no Apollo Client or urql in the bundle; React Server Components do the fetching server-side and hydrate as static HTML.
+
+### Homepage with at least 5 articles
+
+`app/page.tsx` renders a hero article plus a 12-card grid, then keeps appending older stories on scroll using a cursor-based GraphQL query. The minimum is 5, but I implemented infinite scroll because it felt closer to what an editorial product would ship.
+
+### Basic article page
+
+`app/article/[slug]/page.tsx` renders a semantic `<article>` with `<header>`, `<h1>`, byline, `<time datetime>`, featured image, sanitized body HTML, and related stories from the same primary sector. There is also a small "Listen" control that reads the article aloud through the Web Speech API (zero backend cost).
+
+### README, architecture, tradeoffs, caching, AI usage
+
+The rest of this README covers those. Architecture is in section 4, the data model in section 5, caching and sync in section 6, tradeoffs in section 11, and AI usage in section 12.
 
 ## Table of contents
 
