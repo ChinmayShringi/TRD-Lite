@@ -3,36 +3,59 @@
 [![CI](https://github.com/ChinmayShringi/TRD-Lite/actions/workflows/ci.yml/badge.svg)](https://github.com/ChinmayShringi/TRD-Lite/actions/workflows/ci.yml)
 [![Live](https://img.shields.io/badge/live-trd--lite--takehome.vercel.app-1F6FEB?logo=vercel&logoColor=white)](https://trd-lite-takehome.vercel.app)
 
-> **TRD Lite** is a 500-post mirror of The Real Deal, served through a typed GraphQL API and a cache-aware Next.js frontend, kept fresh by an incremental sync against the WordPress REST endpoint. Built with security, accessibility, and SEO baked in.
+## 1. Overview
 
-## TL;DR
+This is my take-home submission for The Real Deal. I built a small news site that mirrors articles from TRD's WordPress REST endpoint, stores them in Postgres, exposes them through my own GraphQL API, and renders them with Next.js. Production currently mirrors 509 posts.
+
+I wrote this README in first-person because I want the reviewer to see how I think about the tradeoffs, not just what got shipped. The headline pieces:
 
 - **Live:** <https://trd-lite-takehome.vercel.app>
-- **Stack:** Next.js 15 (App Router) + GraphQL Yoga (hand-written SDL) + DataLoader + Drizzle + Neon Postgres
-- **Sync:** Vercel Cron at `0 6 * * *` calls `/api/sync` daily; the same protected endpoint plus a Basic-Auth-protected `/admin/sync` force-sync UI cover ad-hoc refresh. Production currently mirrors **509 posts**.
-- **Cache:** Postgres is the durable server-side cache for WordPress data; Next.js Data Cache plus tag-based revalidation is the presentation cache on top. The browser is not responsible for freshness. No Redis. About ten lines of cache code in total.
-- **Demo entrypoints:** `/sync-status` (public read-only run history), `/api/graphql` (GraphiQL in dev), `/search?q=manhattan`, `/api/healthz`.
+- **Stack:** Next.js 15 (App Router), GraphQL Yoga with hand-written SDL, DataLoader, Drizzle, Neon Postgres.
+- **Sync:** Vercel Cron at `0 6 * * *` calls a protected `/api/sync` route; a Basic-Auth-protected `/admin/sync` page can force a sync on demand.
+- **Cache:** Postgres is the durable cache for WordPress content; the Next.js Data Cache with tag-based revalidation is the presentation cache on top.
+- **Demo entrypoints:** `/sync-status`, `/api/graphql`, `/search?q=manhattan`, `/api/healthz`.
 
-## Beyond the brief
+## 2. Assignment Requirements Coverage
 
-The assignment asked for a homepage with 5+ articles, a basic article page, GraphQL on top of cached WordPress data, and a README. Everything below was shipped on top of that, on the same Vercel free tier, inside the same week:
+Before going into deeper engineering, I wanted to map each bullet of the assignment to where it lives in this submission.
 
-- **Listen to any article.** A browser-native text-to-speech control on every article page, powered by the Web Speech API. Zero backend cost, zero API key, audio synthesized on the reader's device. Voice priority is locked to natural-sounding US English female voices (Microsoft Jenny Online, Aria Online, Samantha, Google US English Female, Zira); if the device exposes none of them, the control hides itself instead of falling through to the robotic platform default. *Production path:* swap the synthesis layer for ElevenLabs (or a fine-tuned house voice), cache the audio in Vercel Blob keyed by `slug + content_hash`, and serve the MP3 from the same Listen button.
-- **Inline YouTube embeds.** TRD articles often embed video. The sanitize-html allowlist permits `<iframe>` for YouTube and the rendered HTML carries the embeds end-to-end so the article page reads the way the editor wrote it.
-- **Infinite scroll on the homepage.** Cursor-based GraphQL pagination + an `IntersectionObserver`-driven loader keeps appending older stories as the reader nears the bottom. The grid never collapses; skeletons hold the layout during the fetch.
-- **Full-text search.** Postgres `tsvector` with a GIN index, `ts_rank` ordering, and a `/search?q=` page with debounced query, highlighted matches, and a results-count chip. Powered by a real GraphQL field (`searchPosts`), not a hand-rolled `LIKE`.
-- **Light + dark theme, first-class.** A pre-hydration script in `app/layout.tsx` reads the saved preference (or `prefers-color-scheme`) before paint, so there is no flash of the wrong theme. Every component reads cleanly in both modes; no manual color overrides.
-- **Responsive across phone, tablet, desktop.** Editorial density preserved across breakpoints; mobile shows a left-drawer masthead with hamburger, search, primary nav, categories, and theme toggle. Desktop shows a full inline nav with categories dropdown and inline search.
-- **Accessibility audited, not assumed.** WCAG-conscious target (working toward 2.1 AA). Playwright + axe-core run in CI on `/` and an article page; serious or critical violations fail the build. Result on production: zero. The "Listen" button is itself an a11y feature.
-- **CI/CD with three gated jobs.** GitHub Actions runs `lint + typecheck + codegen-drift + build`, then `vitest` (40 tests), then `playwright + axe-core` (5 e2e tests), with the test jobs gated on `needs: [static]`. Every push to `main` runs the full suite; the README CI badge is live.
-- **Type-safe GraphQL end to end.** `graphql-codegen` generates operation types from the hand-written SDL; a `pnpm codegen:check` step in CI fails the build if `__generated__/` drifts from the schema. No untyped `any` between resolver and page.
-- **Security headers + CSP.** `next.config.ts` ships Content-Security-Policy, `Referrer-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, plus a Playwright-verified guarantee that `SYNC_TOKEN` never reaches the browser.
-- **Public sync-status + Basic-Auth admin.** `/sync-status` shows the last 20 sync runs without credentials. `/admin/sync` sits behind HTTP Basic Auth (edge-middleware decoded, constant-time compared), with a server-action force-sync that re-reads the token server-side.
-- **JSON-LD `NewsArticle`, sitemap, canonical-back-to-TRD.** Every article emits structured data for SERP and AI summarizers; the canonical points back to therealdeal.com so source credit stays where it belongs.
-- **Skeletons over spinners.** Every awaited fetch (homepage cards, article body, search) paints a layout-faithful skeleton. The grid never jumps, the page never collapses.
-- **Honest operational receipts.** `docs/measurements/query-counts.md` records measured SQL counts per GraphQL operation. `docs/orchestration/orchestration-plan.md` is the wave-by-wave execution trace. The README only quotes numbers that were actually measured.
+### Fetch content from the WordPress API
 
-## Quick start
+I wrote a typed client at `src/lib/wp-client.ts` that wraps `https://therealdeal.com/wp-json/wp/v2/posts`. It always passes `?_embed=1` so author, media, and term data come back in one round trip, paginates with `?modified_after` for incremental pulls, and uses exponential backoff on 5xx responses. The sync orchestrator at `src/lib/sync.ts` is the only thing in the codebase that ever calls WordPress. User requests never touch it.
+
+### Store/cache the data locally in a database
+
+I chose Neon Postgres as the durable local store. Schema and migrations live in `src/db/schema.ts` and `drizzle/`. The tables I projected from the WP shape: `posts`, `authors`, `media`, `terms`, `post_terms`, and `sync_runs`. Each row keeps a `raw jsonb` column for the original WP payload so I can add columns later without re-syncing. The sync worker upserts idempotently in dependency order (media, authors, terms, posts, post_terms), one Drizzle transaction per 100-post page.
+
+### Expose the data through a GraphQL API
+
+I implemented the GraphQL layer with GraphQL Yoga, mounted at `/api/graphql`. The schema is a hand-written SDL string in `src/graphql/schema.ts`. Resolvers are thin wrappers over Drizzle relational queries, with a per-request DataLoader context in `src/graphql/loaders.ts` as a fallback for any future chatty resolver. Operations: `posts`, `post`, `postsByTerm`, `searchPosts`, `syncStatus`. Cursor pagination is base64-encoded `publishedAt|id`. GraphiQL is enabled in development at `/api/graphql`.
+
+### Use that GraphQL API to power the frontend
+
+Every page in `app/` fetches through `src/lib/graphql-fetch.ts`, which calls `/api/graphql` with `next: { tags, revalidate }`. I added a lint-style guard that prevents `app/` and `src/components/` from importing anything under `src/db/`, so the frontend cannot bypass the GraphQL layer. There is no Apollo Client or urql in the bundle; React Server Components do the fetching server-side and hydrate as static HTML.
+
+### Homepage with at least 5 articles
+
+`app/page.tsx` renders a hero article plus a 12-card grid, then keeps appending older stories on scroll using a cursor-based GraphQL query. The minimum is 5, but I implemented infinite scroll because it felt closer to what an editorial product would ship.
+
+### Basic article page
+
+`app/article/[slug]/page.tsx` renders a semantic `<article>` with `<header>`, `<h1>`, byline, `<time datetime>`, featured image, sanitized body HTML, and related stories from the same primary sector. There is also a small "Listen" control that reads the article aloud through the Web Speech API (zero backend cost).
+
+### README, architecture, tradeoffs, caching, AI usage
+
+The rest of this README covers those. Architecture is in section 5, the data model in section 6, caching and sync in section 7, tradeoffs in section 12, and AI usage in section 13.
+
+## 3. Live Demo and Repository
+
+- **Live URL:** <https://trd-lite-takehome.vercel.app>
+- **GitHub:** <https://github.com/ChinmayShringi/TRD-Lite>
+- **Vercel project:** `prj_U3TwFCMFgZRa5vR3hIZCv9HpWzKx` under `fakeairhead-3730s-projects`
+- **GraphiQL (dev only):** `http://localhost:3000/api/graphql`
+- **Public sync status:** <https://trd-lite-takehome.vercel.app/sync-status>
+
+## 4. Quick Start
 
 ```bash
 git clone git@github.com:ChinmayShringi/TRD-Lite.git
@@ -52,7 +75,9 @@ pnpm dev                           # http://localhost:3000
 
 Tests: `pnpm test` (Vitest unit + integration), `pnpm test:e2e` (Playwright + axe-core).
 
-## Architecture
+## 5. Architecture
+
+### Data flow
 
 ```mermaid
 flowchart LR
@@ -68,26 +93,55 @@ flowchart LR
     CDN --> BROWSER[Browser]
 ```
 
-A daily Vercel Cron hits the bearer-protected `/api/sync` route. The handler reads `max(posts.modified_at) - 60s` as a cursor, pages through `wp/v2/posts?_embed=1&modified_after=...`, and idempotently upserts media, authors, terms, posts, and post_terms in that order, one transaction per page (Neon WebSocket driver). After upserts it calls `revalidateTag` for `homepage`, `post:{slug}`, `sector:{slug}`, and `market:{slug}` so the next visitor sees fresh content. Server Components fetch from `/api/graphql` over plain `fetch` with `next: { tags, revalidate: 300 }`. The frontend never imports from `src/db/`; the GraphQL layer is the only entrance to the database.
+A daily Vercel Cron hits the bearer-protected `/api/sync` route. The handler reads `max(posts.modified_at) - 60s` as a cursor, pages through `wp/v2/posts?_embed=1&modified_after=...`, and idempotently upserts media, authors, terms, posts, and post_terms in that order. After upserts it calls `revalidateTag` for `homepage`, `post:{slug}`, and `sector:{slug}`. Server Components fetch from `/api/graphql` over plain `fetch` with `next: { tags, revalidate: 300 }`.
 
-## Decisions and tradeoffs
+### Why a single Next.js app
 
-| Choice | What I picked | Why |
-| --- | --- | --- |
-| App topology | Single Next.js app, GraphQL Yoga mounted at `/api/graphql` | One repo, one deploy, one process model. The GraphQL layer is folder-isolated under `src/graphql/`, so lifting it to a Hono service later is a few hours of work. The brief said "Use Next.js for the frontend and GraphQL for the API layer"; this satisfies the wording without over-deploying. |
-| ORM | Drizzle | Native serverless story (works with Neon's HTTP and WebSocket drivers), small bundle, type-safe relational queries. Translates 1:1 to Prisma if recognizability matters more than runtime fit. |
-| GraphQL schema style | Hand-written SDL + `makeExecutableSchema` | Universal, inspectable, no beta plugins. Pothos's drizzle plugin was beta at the time and Claude Code can mis-wire framework-specific abstractions. SDL plus a typed resolver map is the lowest-risk shape with `graphql-codegen` adding type safety on top. |
-| GraphQL client | Plain `fetch` from Server Components | Apollo Client and urql are designed for client-side state. RSC fetches server-side, hydrates as static HTML, and the browser never sees a GraphQL framework. Drops well over 100 KB from the bundle. |
-| Sync model | Cron-based incremental sync via `?modified_after` | Pull-on-request would make the demo a DoS amplifier and let WP outages take the site down. Webhooks would be ideal but require a WP plugin we cannot install on TRD's prod CMS. Cron + cursor + idempotent upsert is the stable middle ground. |
-| N+1 prevention | Drizzle relational queries first, DataLoader as a fallback | List pages issue **1 SQL** for `posts(first:10)` and **1 SQL** for `post(slug)`; `postsByTerm` is **2 SQL** (allowlist + relational). Measured with Drizzle's `logger: true` flag; counts recorded in [`docs/measurements/query-counts.md`](docs/measurements/query-counts.md). DataLoader factories are wired into the per-request context so any future chatty resolver gets batching for free. |
-| Cache layering | Postgres as the durable server-side cache + Next.js Data Cache (tag invalidation) + 300s time-based safety net | The browser is not the cache. WordPress is touched only by the sync worker; user requests read from Postgres through GraphQL, with Next.js tag-based cache revalidation on top. About ten lines of cache code in the whole app. |
-| No Redis | Skipped on purpose | Neon with proper indexes returns the homepage query in single-digit ms and Next's Data Cache fronts that. Redis would be a fourth tier with no observable benefit and one extra failure mode. |
-| Sync visibility | Public read-only `/sync-status` + Basic-Auth `/admin/sync` | The public page lets a reviewer click one URL to see the system is alive. The admin page carries the only mutation-shaped action (force-sync) and sits behind HTTP Basic Auth via `middleware.ts`. The bearer token is read server-side inside a server action and never reaches the browser, verified by a Playwright check. |
-| Schema shape | Project the parts of WP that matter, keep `raw jsonb` everywhere | 8 to 10 KB per post is trivial at this scale. ACF and yoast field shapes drift; the JSONB safety net lets us add columns later without re-syncing from upstream. |
+I kept the GraphQL layer and the Next.js frontend in one repo and one deploy. The tradeoff: this is simpler to run and review for a take-home, but it does mean the API and frontend share a process and a release cadence. To make the future split easy, I folder-isolated the GraphQL code under `src/graphql/` and forbade frontend code from importing `src/db/` directly. Lifting `src/graphql/` into a separate Hono service later would be a few hours of work instead of a rewrite.
 
-## How caching works
+### Why GraphQL Yoga
 
-There are several caches, in different places. The browser is the least important one. The real caching story is server-side, with Postgres as the durable layer and Next.js/Vercel cache as the presentation layer on top.
+I picked GraphQL Yoga over Apollo Server because Yoga is a thin handler that drops into a Next.js route. I also chose a hand-written SDL with `makeExecutableSchema` instead of a code-first builder like Pothos. The Pothos Drizzle plugin was in beta when I started, and for a take-home I preferred a setup the reviewer can read top-to-bottom without learning a builder DSL. I add type safety on top with `graphql-codegen` and a `codegen:check` step in CI.
+
+### Why Postgres as the durable cache
+
+The brief said "store/cache the WordPress data however you think makes sense." I chose Postgres because it gives me transactional writes, indexes for the homepage and slug lookups, and a clean place to keep an operational log (`sync_runs`). My goal was to avoid calling WordPress during user requests while still keeping the frontend backed by real synced content. SQLite would have worked locally but does not fit the Vercel-plus-managed-DB deploy story, and an in-memory cache would not survive a function cold start.
+
+## 6. Data Model
+
+### Posts
+
+`posts` holds the editorial entity: WP `id` (bigint), `slug`, `title`, `excerpt`, `excerpt_html`, `content_html` (already sanitized at sync time), `link` (the canonical TRD URL), `status`, `published_at`, `modified_at`, `author_id`, `featured_media_id`, and a `raw jsonb` column. Indexes on `published_at`, `(status, published_at)`, and `slug` cover the homepage, status filtering, and slug lookups.
+
+### Authors
+
+`authors` keeps `id`, `slug`, `name`, `description`, avatar URLs, and `raw jsonb`. Articles join via `posts.author_id`.
+
+### Media
+
+`media` carries `id`, `source_url`, `mime_type`, `alt_text`, `width`, `height`, and the `media_details.sizes` map preserved as JSON so the frontend can pick the right crop. `posts.featured_media_id` points here.
+
+### Terms and taxonomies
+
+WP has multiple taxonomies (`category`, `sector`, `market`, `tag`). I normalized this into a single `terms` table with `taxonomy`, `slug`, `name`, and a unique constraint on `(taxonomy, slug)`. `post_terms` is the join table with indexes on both sides so `postsByTerm` is index-supported in both directions.
+
+### Sync runs
+
+`sync_runs` is the operational log: `started_at`, `finished_at`, `modified_after`, `posts_upserted`, `errors`, `status`, `notes`. `/sync-status` reads the most recent rows.
+
+### Why raw JSONB is stored
+
+ACF and Yoast field shapes drift across WordPress versions, and I did not want to re-sync hundreds of posts if I later decided to expose a new field. Keeping `raw jsonb` adds maybe 8 to 10 KB per row, which is trivial at this scale, and gives me a recovery path if I miss a column.
+
+## 7. Caching and Data Syncing
+
+### Postgres as the durable WordPress cache
+
+The brief asked for the WordPress data to be stored or cached locally. I chose Postgres as the durable layer. The sync worker is the only process that ever touches WordPress; user requests read from Postgres through the GraphQL resolver. This isolates the app from WordPress latency and from temporary WordPress outages, and it gives me indexed reads instead of REST calls.
+
+### Next.js Data Cache and tag invalidation
+
+On top of Postgres I use the Next.js Data Cache as a presentation cache. Every server-component GraphQL call uses `fetch('/api/graphql', { next: { tags, revalidate: 60..300 } })`, so warm requests inside the revalidate window skip the resolver and the DB. After every successful sync, the handler calls `revalidateTag('homepage')`, `revalidateTag('post:{slug}')` for each updated post, and `revalidateTag('sector:{slug}')` for each affected sector. The browser may cache prefetched route payloads, but freshness does not depend on the browser at all.
 
 ```
 WordPress REST API
@@ -113,24 +167,86 @@ Browser
   |  not responsible for content freshness
 ```
 
-**Where the cache actually lives.**
-
-- **Postgres is the durable cache.** WordPress is the source of truth; Neon Postgres is the served-from store. The frontend never calls WordPress directly. This is what satisfies the brief's "store/cache the WordPress data locally" requirement, and it is what keeps user requests fast and isolates the app from upstream WP latency or outages.
-- **Next.js Data Cache + tag invalidation is the presentation cache.** Server components call `fetch('/api/graphql', { next: { tags, revalidate } })`, so warm requests skip the resolver and the DB entirely for the revalidate window. After every successful sync, `/api/sync` fires `revalidateTag('homepage')`, `post:{slug}`, and `sector:{slug}` so new stories appear within seconds of the cron tick, not at the 300-second timer.
-- **The browser is not in charge of freshness.** It may cache prefetched route payloads and static assets via standard HTTP headers, but no content invariant depends on it.
-
-### Tag taxonomy
+### Revalidation strategy
 
 | Tag | Used by | Invalidated when |
 | --- | --- | --- |
-| `homepage` | `/` (latest articles) | Any post in the homepage window changes |
+| `homepage` | `/` | Any post in the homepage window changes |
 | `post:{slug}` | `/article/{slug}` | That specific post changes |
 | `sector:{slug}` | `/sector/{slug}` | Any post in that sector changes |
 | `market:{slug}` | (reserved for `/market/{slug}`) | Any post in that market changes |
 
-### N+1 prevention, measured
+The 300-second time-based revalidate is a safety net in case a tag-based invalidation is ever missed (for example when the standalone backfill script runs outside a Next request context).
 
-The temptation is `posts → 10 author queries → 10 media queries → 30 term queries = 51 SQL`. Drizzle's relational query API plans the homepage as a single statement with a JSON-aggregated graph:
+### Why user requests never hit WordPress directly
+
+Two reasons. First, latency and availability: if the frontend called WordPress on every request, a slow or down upstream would take this site down too. Second, the brief explicitly asked for the WP data to be stored or cached locally, and pulling on every request would not satisfy that.
+
+### Why no Redis
+
+I considered Redis and chose not to add it. Postgres with proper indexes returns the homepage query in single-digit milliseconds, and the Next.js Data Cache fronts that. For this scope, Redis would be a fourth tier with no observable benefit and one more failure mode to operate. On a larger system with higher traffic or more cross-request state (rate limits, session stores, real-time fanout), I would revisit.
+
+### How sync works in detail
+
+`src/lib/sync.ts` owns the pipeline; `app/api/sync/route.ts` is the bearer-protected HTTP handler.
+
+- **Cursor.** `max(posts.modified_at)` minus a 60-second safety overlap. The overlap is safe because every entity is `INSERT ... ON CONFLICT DO UPDATE`.
+- **Pagination.** `?_embed=1&per_page=100&orderby=modified&order=asc&modified_after={cursor}`, with a 1-second delay between pages and exponential backoff on 5xx.
+- **Upsert order.** Media, authors, terms, posts, post_terms. Foreign keys are satisfied at every step.
+- **Transaction per page.** Each 100-post page is wrapped in a Drizzle transaction over the Neon WebSocket driver. If a page fails, the cursor does not advance.
+- **Sanitization on write.** `src/lib/sanitize.ts` runs `sanitize-html` with an editorial allowlist before content lands in the DB. I pay the CPU cost once per post, not per view, and the DB never holds unsafe HTML.
+- **Operational log.** Every run writes a row to `sync_runs`. `/sync-status` reads the most recent ones.
+
+One thing I did not solve in v1: deletes are invisible to a `modified_after` sweep because the WP endpoint just stops returning the row. I called this out in section 14.
+
+## 8. GraphQL API
+
+### Schema overview
+
+```graphql
+type Query {
+  posts(first: Int, after: String, status: PostStatus = PUBLISHED): PostConnection!
+  post(slug: String!): Post
+  postsByTerm(taxonomy: Taxonomy!, slug: String!, first: Int, after: String): PostConnection!
+  searchPosts(query: String!, first: Int = 10, after: String): PostConnection!
+  syncStatus: SyncStatus!
+}
+```
+
+`Post` carries the title, excerpt, sanitized HTML body, publish/modify dates, the canonical TRD `link`, author, featured media, and the joined `sectors` and `tags`.
+
+### Example queries
+
+```graphql
+# Homepage
+query Latest {
+  posts(first: 12) {
+    edges {
+      cursor
+      node { id slug title excerpt publishedAt sectors { slug name } featuredMedia { url width height alt } }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+
+# Article page
+query Article($slug: String!) {
+  post(slug: $slug) {
+    id slug title excerpt contentHtml publishedAt modifiedAt link
+    author { name slug avatarUrl }
+    featuredMedia { url width height alt }
+    sectors { slug name }
+  }
+}
+```
+
+### Cursor pagination
+
+Cursors are base64-encoded `publishedAt|id` strings. I picked this shape because it is stable across sorts, does not leak primary keys, and is easy to debug (a base64 decode shows the boundary). The encode/decode helpers live in `src/graphql/cursor.ts` and are covered by a round-trip unit test.
+
+### N+1 prevention
+
+The naive shape would be `posts -> 10 author queries -> 10 media queries -> 30 term queries = 51 SQL`. I used Drizzle's relational query API so the homepage plans as a single statement:
 
 ```ts
 db.query.posts.findMany({
@@ -138,7 +254,7 @@ db.query.posts.findMany({
 });
 ```
 
-Measured (see `docs/measurements/query-counts.md`):
+Measured with Drizzle's `logger: true` flag and recorded in [`docs/measurements/query-counts.md`](docs/measurements/query-counts.md):
 
 | GraphQL operation | SQL statements |
 | --- | --- |
@@ -146,49 +262,77 @@ Measured (see `docs/measurements/query-counts.md`):
 | `post(slug: $slug)` | 1 |
 | `postsByTerm(taxonomy, slug, first: 10)` | 2 |
 
-`postsByTerm` runs two statements (taxonomy allowlist + main relational query) on purpose: keeping the relational hydration intact requires a top-level table-only `findMany`, and the allowlist query is index-supported by `terms_taxonomy_slug_unique` and `post_terms_term_id_idx`. DataLoader factories sit in the per-request context as a guaranteed-batching fallback for any future resolver that bypasses the relational query.
+`postsByTerm` issues two statements (a taxonomy allowlist plus the main relational query) because keeping the relational hydration intact requires a top-level table-only `findMany`. I left DataLoader factories in the per-request context as a fallback so any future resolver that bypasses the relational query still gets batching.
 
-## How sync works
+## 9. Frontend Decisions
 
-`lib/sync.ts` owns the sync pipeline; `app/api/sync/route.ts` is the bearer-protected HTTP handler.
+### Homepage
 
-- **Cursor.** `max(posts.modified_at)` minus a 60-second safety overlap. Overlap is fine because every entity uses `INSERT ... ON CONFLICT DO UPDATE`. An empty database means "no `modified_after` parameter" and the worker pages from the most recent post backwards.
-- **Pagination.** `?_embed=1&per_page=100&orderby=modified&order=asc&modified_after={cursor}` with a 1-second delay between pages and exponential backoff on 5xx.
-- **Upsert order.** Media -> authors -> terms -> posts -> post_terms. Foreign keys are satisfied at every step; no orphaned references mid-page.
-- **Transaction per page.** A single Drizzle transaction wraps each 100-post page using the Neon WebSocket driver. If a page fails, the cursor does not advance and the next run retries the same window.
-- **Sanitization on write.** `lib/sanitize.ts` runs `sanitize-html` with an editorial allowlist (img, figure, figcaption, iframe, section; classes preserved; `<a>` rewritten to `rel="noopener noreferrer"`) before content_html lands in the DB. Pay the CPU cost once per post, not per view; the DB never holds dangerous HTML, even briefly.
-- **Cache invalidation.** After upserts, the handler calls `revalidateTag('homepage')`, `revalidateTag('post:{slug}')` for each touched post, and `revalidateTag('sector:{slug}')` for each affected sector. Outside a Next request context (e.g., the standalone backfill script) the calls log a warning and continue; the 300-second time-based revalidate is the safety net.
-- **Operational log.** Every run writes a row to `sync_runs` (started_at, finished_at, modified_after, posts_upserted, errors, status, notes). `/sync-status` reads the last 20 rows.
+`app/page.tsx` shows a hero card and a 12-card grid. I added infinite scroll using `IntersectionObserver` and the same cursor pagination from GraphQL because it matches how a reader of an editorial site actually scans. Skeletons hold the grid layout during the fetch so the page never jumps.
 
-**What is unsolved.** Deletes upstream are invisible to a `modified_after` sweep: the WP endpoint just stops returning the row. v1 does not detect deletes. The right next step is a slow full-ID sweep (e.g., once a day) that diffs against the local table; called out in *What I'd do next*.
+### Article page
 
-## Security
+`app/article/[slug]/page.tsx` is a single `<article>` with semantic header, headline, byline, time, featured image, sanitized body HTML, and a related-stories rail from the same primary sector. I added a small "Listen" button using the Web Speech API. It is browser-native, free, and on-device; if the device exposes no natural-sounding US English voice, the control hides itself instead of falling back to the robotic platform default. In production I would swap this for an ElevenLabs voice (or a fine-tuned house voice) and cache the MP3 in Vercel Blob keyed by `slug + content_hash`.
 
-- **HTML sanitization at sync time.** WordPress `content.rendered` is HTML, and treating CMS HTML as trusted application code is the most common vulnerability in headless WP setups. We sanitize on write with an allowlist tuned for editorial markup, then store only the cleaned HTML.
-- **Content-Security-Policy** plus three other security headers, set globally in `next.config.ts`. The current policy is intentionally permissive (`script-src 'self' 'unsafe-inline'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self' https: data: blob:`) because the JSON-LD tag inlines on article pages, Tailwind injects runtime styles, and TRD's editorial images live across multiple CDN subdomains. `'unsafe-eval'` is appended only in development for Next's HMR pipeline; production responses do not include it. `frame-ancestors 'none'` and `X-Frame-Options: DENY` together cover click-jacking. `Referrer-Policy: strict-origin-when-cross-origin` and `X-Content-Type-Options: nosniff` cover the rest of the OWASP secure-headers shortlist.
-- **Sync token never reaches the browser.** `/api/sync` requires `Authorization: Bearer ${SYNC_TOKEN}`. Vercel Cron supplies it automatically. The `/admin/sync` force-sync UI sits behind HTTP Basic Auth via `middleware.ts`; the form posts to a server action that re-reads `SYNC_TOKEN` server-side and calls `/api/sync` from inside the same Vercel function. A Playwright assertion checks `page.content()` does not contain the token after the page renders.
-- **Basic Auth on `/admin/*`.** Edge-runtime middleware decodes the `Authorization` header with `atob` (no Node `Buffer` polyfill on Edge), compares user and password with a constant-time-ish XOR, and fails closed if `ADMIN_USER` or `ADMIN_PASS` is unset.
+### Search
 
-## Accessibility (WCAG 2.1 AA)
+`app/search/page.tsx` is backed by Postgres full-text search. I added a `tsvector` column generated from title plus excerpt plus content HTML, a GIN index over it, and a `searchPosts` GraphQL field that uses `to_tsquery` with a `plainto_tsquery` fallback and `ts_rank` ordering. The page debounces input, highlights matching tokens, and shows a result count chip.
 
-- `<html lang="en">`, a skip link, semantic `<article>` / `<header>` / `<time datetime>` / `<address>` on the article page, one `<h1>` per page, headings in document order.
-- Real `<button>` and `<a>` elements; never `<div onClick>`. Tailwind `focus-visible:ring-2 focus-visible:ring-offset-2` defaults on links and buttons.
-- Every `next/image` carries an `alt` from `_embedded["wp:featuredmedia"].alt_text`; decorative-only images use the empty-string alt.
-- Contrast: shadcn neutrals on white pass AA. The accent (`#1F6FEB`) was chosen deliberately distinct from TRD's brand red and verified against white. The sector chip color was tightened during Wave 6's audit after axe flagged a 4.12:1 contrast.
-- `axe-core` runs in CI via Playwright on `/` and one article page; the assertion is zero `serious` or `critical` violations. Result on production: clean.
+### Sync status page
 
-## SEO
+`/sync-status` is a public read-only view of the last 20 sync runs (status, posts upserted, started/finished timestamps, errors). I included it because the simplest way for a reviewer to confirm the system is alive is one click. `/admin/sync` is the Basic-Auth-protected force-sync UI for ad-hoc refresh.
 
-- **Per-page metadata** via Next 15's `generateMetadata`. Each article page emits OpenGraph (`type=article`, publishedTime, author, image), Twitter (`summary_large_image`), and `alternates.canonical` pointing back at the original TRD URL stored in `posts.link`. The canonical points back deliberately: TRD Lite is a demo, not a competing copy, and we do not want this URL ranked over `therealdeal.com`.
-- **JSON-LD `NewsArticle`** in the article page's `<head>`. The serializer escapes `<` to `<` to neutralize a closing-tag injection vector; this was caught by the Wave 6 auditor and fixed in the same wave.
-- **`sitemap.xml`** generated from the `posts` table at revalidate time.
-- **`robots.txt`** sets `noindex` for the demo so it cannot be mistaken for the source. Reviewers can follow links by hand.
-- **CLS prevention** via `width` and `height` from `media_details`, passed to `next/image`.
+### Editorial design direction
 
-## Testing
+I constrained the visual system with `.impeccable.md` so the UI did not drift into generic SaaS aesthetics. The references I aimed at are WSJ, NYT, and FT; the anti-references are TRD's red sans-serif brand, gradient marketing pages, and crypto-dashboard glassmorphism. I used Source Serif 4 for headlines, Inter for UI, and a calm blue accent (`oklch(0.55 0.20 245)`) used only on interactive surfaces. Light and dark are both first-class; a pre-hydration script applies the saved preference before paint to avoid theme flash.
 
-- **Vitest:** 40 unit and integration tests covering sanitize allowlist invariants, cursor encode/decode round-trip, sync idempotency, cursor advancement, bearer-token rejection, GraphQL `post(slug)`, GraphQL `posts` pagination, status filter behavior, FTS rank ordering and empty-query short-circuit, codegen drift detection, sync-UI auth path, frontend boundary rule (no `@/db` imports outside `src/graphql/`), cache-tag generation, and Postgres connection smoke.
-- **Playwright + axe-core:** 5 e2e tests covering homepage a11y, article-page a11y, public `/sync-status`, `/admin/sync` 401 challenge with a `WWW-Authenticate` header, and the SYNC_TOKEN-leak assertion against `/admin/sync` rendered HTML.
+## 10. Performance, Security, Accessibility, and SEO
+
+### Performance
+
+- Postgres plus Next.js Data Cache covers warm requests without a resolver hit.
+- The Neon project is colocated with Vercel's `iad1` region; this dropped my measured query latency from roughly 70 ms cross-region to roughly 3 ms intra-region.
+- I size images via `width` and `height` from `media_details` and pass them to `next/image`, which prevents layout shift.
+- I prefer skeletons over spinners for anything over ~150 ms so the layout never collapses.
+
+### HTML sanitization
+
+I sanitize CMS HTML at sync time, not at render time, with an editorial allowlist (`img`, `figure`, `figcaption`, `iframe` restricted to YouTube hosts, `section`, common inline tags). `<a>` is rewritten to add `rel="noopener noreferrer"`. The DB never holds unsafe HTML, even briefly, and render-time is just an injection of the already-trusted column.
+
+### Protected sync endpoint
+
+`/api/sync` requires `Authorization: Bearer ${SYNC_TOKEN}`. Vercel Cron supplies it automatically. The `/admin/sync` UI is gated by HTTP Basic Auth in `middleware.ts`; the force-sync form posts to a server action that re-reads `SYNC_TOKEN` server-side and calls `/api/sync` from inside the same Vercel function. The token never reaches the browser, and a Playwright assertion verifies that by inspecting the rendered HTML.
+
+I also set Content-Security-Policy, `Referrer-Policy`, `X-Content-Type-Options`, and `X-Frame-Options` globally in `next.config.ts`. The current CSP is intentionally permissive on `script-src` and `style-src` because of inline JSON-LD and Tailwind's runtime styles; I noted a per-request nonce upgrade in section 14.
+
+### Accessibility checks
+
+- Semantic HTML throughout (`<article>`, `<header>`, `<time datetime>`, one `<h1>` per page).
+- Real `<button>` and `<a>` elements, with `focus-visible:ring-2 focus-visible:ring-offset-2` defaults.
+- Every `next/image` carries an `alt` value from `_embedded["wp:featuredmedia"].alt_text`.
+- `axe-core` runs in CI through Playwright on `/` and one article page; the assertion is zero `serious` or `critical` violations. Result on production: clean.
+- I would not claim full WCAG 2.1 AA without a manual review, but I treated AA as the target and the automated assertion as the floor.
+
+### SEO and canonical URLs
+
+- `generateMetadata` on every page emits OpenGraph, Twitter, and `alternates.canonical` pointing back to the original TRD URL stored in `posts.link`. The canonical points back deliberately, because this is a demo and TRD is the source of truth.
+- `JSON-LD NewsArticle` ships in the article `<head>`. The serializer escapes `<` to `<` to neutralize a closing-tag injection vector.
+- `sitemap.xml` is generated from the `posts` table.
+- `robots.txt` sets `noindex` for the demo so it cannot be mistaken for the source.
+
+## 11. Testing and CI/CD
+
+### Unit tests
+
+I prioritized the security-critical and correctness-critical paths first: sanitize allowlist invariants, cursor encode/decode round-trip, sync idempotency, cursor advancement, bearer-token rejection, cache-tag generation, and the frontend boundary rule (no `@/db` imports outside `src/graphql/`).
+
+### Integration tests
+
+Vitest also covers the GraphQL surface against a test database: `post(slug)`, `posts` pagination, status filter behavior, FTS rank ordering and empty-query short-circuit, codegen drift detection, sync-UI auth path, and a Postgres connection smoke check. The full Vitest suite is 40 tests.
+
+### Playwright and axe-core
+
+I added 5 Playwright tests: homepage a11y, article-page a11y, public `/sync-status`, the `/admin/sync` 401 challenge with a `WWW-Authenticate` header, and the SYNC_TOKEN leak assertion against rendered HTML.
 
 ```bash
 pnpm test         # 40 vitest tests
@@ -196,62 +340,96 @@ pnpm test:e2e     # 5 Playwright tests
 pnpm coverage     # vitest with V8 coverage
 ```
 
-## CI/CD
+### GitHub Actions
 
-GitHub Actions runs on every push to `main` and every PR. Three jobs:
+CI runs on every push to `main` and every PR. Three jobs:
 
-1. **`static`** (lint + typecheck + codegen check + build). Catches drift between the committed GraphQL types and the live schema; fails the build when a developer changes an operation without re-running `pnpm codegen`.
-2. **`test`** (vitest unit + integration). Depends on `static`.
-3. **`e2e`** (Playwright + axe-core). Depends on `static`. Uploads `playwright-report/` and `test-results/` on failure with a 7-day retention.
+1. **`static`** runs lint, typecheck, the codegen drift check, and the build.
+2. **`test`** runs the Vitest suite. It depends on `static`.
+3. **`e2e`** runs Playwright plus axe-core. It depends on `static` and uploads `playwright-report/` on failure with a 7-day retention.
 
-`needs: [static]` keeps the test and e2e jobs from racing past obvious type errors. Vercel's GitHub integration auto-deploys `main` to production once CI is green; preview URLs are wired up automatically on PRs.
+I gated `test` and `e2e` on `needs: [static]` so they do not race past obvious type errors.
 
-## Deployment
+### Vercel deployment
 
-- **Vercel (Hobby tier).** Project `prj_U3TwFCMFgZRa5vR3hIZCv9HpWzKx` under team `fakeairhead-3730s-projects`. Single deploy, Node functions for `/api/sync` and `/api/graphql`, Edge runtime for `/api/healthz`.
-- **Neon Postgres (free tier).** One project, one branch, region `us-east-1` to colocate with Vercel's `iad1` (cuts query latency from roughly 70 ms cross-region to roughly 3 ms intra-region). Scale-to-zero is on; the Edge `/api/healthz` route doubles as a cheap warmer.
-- **Cron honesty.** Vercel Hobby caps cron at one execution per day, so production runs `0 6 * * *`. The plan was `*/5 * * * *` on Pro for "appears live" freshness; on Pro the schedule line in `vercel.json` is the only thing that changes. The protected `/api/sync` endpoint and the Basic-Auth `/admin/sync` force-sync button cover ad-hoc refresh in the meantime.
-- **Backfill.** `pnpm tsx --env-file=.env.production scripts/backfill.ts` against production. Current row count: 509 posts. Re-runs are idempotent and a no-op when no upstream changes have happened.
+Vercel's GitHub integration auto-deploys `main` to production once CI is green; preview URLs are wired up on PRs. The project is on the Hobby tier, which caps cron at one execution per day, so my schedule is `0 6 * * *`. On a Pro upgrade I would switch to `*/5 * * * *`; the rest of the cron handler does not change.
 
-## AI tooling
+## 12. Tradeoffs and Decisions
 
-### How it was actually used
+### Single app vs separate backend
 
-This is not a Claude-Code-wrote-my-app project. This is a *human-architected, AI-orchestrated software delivery system*, and it is the part of the build I am proudest of.
+I shipped one Next.js app instead of splitting the GraphQL layer into its own service. The tradeoff is that the API and the frontend share a deploy cadence, and any frontend-only change re-deploys the API too. I accepted that for a take-home and folder-isolated `src/graphql/` so the future split is cheap.
 
-**One human, one project plan, an entire engineering team's worth of throughput.** I sat at the top of the loop as the architect and product owner. Below me, Claude Code ran as a coordinated multi-agent organization that I designed: a planner that decomposed `plan.md` into 11 sequenced waves, an *implementer* that wrote each wave's code, an *auditor* (code-reviewer, security-reviewer, or tdd-guide depending on the surface) that audited the implementation against acceptance criteria and force-ran `typecheck`, `test`, `build`, and Playwright, and a *documenter* that updated the README, recorded tradeoffs, and shipped a Conventional Commit. No code reached `main` until its wave passed every check.
+### Drizzle vs Prisma
 
-**The agents argued with each other, and they caught real bugs.** Auditors flagged a Next 16 vs 15 mismatch, draft posts leaking through `post(slug)`, `'unsafe-eval'` accidentally shipping to production CSP, a JSON-LD `<`-escape vulnerability, a Playwright env loader gap that silently skipped a security test, sector-chip contrast at 4.12:1, and a shadcn default that shadowed the accent CSS variable. The implementer fixed each one inside the same wave it was caught. The system was its own first reviewer.
+I chose Drizzle because it works cleanly with Neon's HTTP and WebSocket drivers and ships small, type-safe relational queries without a separate query engine binary. Prisma is more widely recognized and would have been a defensible alternative; the migration paths in either direction are short.
 
-**A persistent memory that compounds across sessions.** I wired the workflow into an external Obsidian-backed knowledge vault with vector embeddings, so architecture decisions, tradeoffs, and design references survive between Claude Code sessions instead of resetting at every context window. The agent retrieves prior decisions by *meaning*, not filename, and writes new ones back. The project effectively gets smarter every time it is touched.
+### Hand-written SDL vs Pothos
 
-**Design that refused to look AI-generated.** I locked the visual system to a written brief, `.impeccable.md`, with an explicit reference set (WSJ, NYT, FT) and an explicit anti-reference set (TRD's red branding, SaaS landing-page aesthetics, crypto-dashboard glassmorphism). Every UI decision was checked against that brief. The result is editorial, distinct, and unmistakably *not* the generic chatbot-styled output that most AI-assisted projects ship with.
+I picked hand-written SDL because the schema is small, the resolvers are thin, and the reviewer can read the whole API in two files. Pothos with its Drizzle plugin would have generated some of this for me, but it was in beta when I started, and for a take-home I preferred a setup that is easy to audit over one that is clever.
 
-**Where the AI compounded my output the most:** Drizzle migrations, GraphQL SDL wiring, resolver scaffolding, the `sanitize-html` allowlist, codegen drift detection, axe-core accessibility tests, CSP debugging, CI setup, deployment verification, and the endless `typecheck` to `test` to `build` loop that turns a prototype into a product. The high-leverage, low-glamour engineering. The stuff that usually gets cut.
+### Server Components + fetch vs Apollo Client
 
-**Where the AI did not touch a thing:** the architecture (single Next.js app, GraphQL layer folder-isolated, frontend forbidden from importing `src/db/`), the cache invalidation tag taxonomy, the pagination model, the sync semantics (cursor + 60s overlap + idempotent upsert + transaction-per-page), the security posture (sanitize on write, sync token server-side only, Basic Auth on /admin), the test prioritization, and the editorial voice of every page on this site. Those decisions are mine, and the agent worked to them.
+I used React Server Components with plain `fetch` against `/api/graphql` so the browser never loads a GraphQL client. The tradeoff is that I lose Apollo's normalized cache and optimistic updates; for a read-mostly news site that is a fair price, and the bundle is roughly 100 KB smaller.
 
-The honest summary: I built a 500-post, GraphQL-backed, cron-synced, accessibility-audited, security-headered, CI-gated news mirror with measured SQL counts and zero `@/db` leaks, in a fraction of the time it would have taken solo, *and* I built the agent system that built it alongside me. The full execution trace lives in [`docs/orchestration/orchestration-plan.md`](docs/orchestration/orchestration-plan.md). Each commit on `main` is a wave's documenter step; `git log --oneline` reads as the wave history.
+### Cron sync vs request-time WordPress fetch
 
-This is how I use AI: as a force multiplier on a human-owned design, with verification at every step and a memory that gets better over time. Not as a shortcut, and not as a black box.
+I chose cron-driven sync over pulling from WordPress on every request. Request-time pulls would amplify any WP outage and would also break the assignment's "store/cache the WordPress data locally" requirement. The tradeoff is freshness: on Hobby, my cron is daily; on Pro it would be every 5 minutes; with a WP webhook plugin it would be near real-time.
 
-## What I'd do next
+### Vercel Hobby vs Pro
 
-- **Webhook-based invalidation.** Requires a WP plugin (e.g., WP Webhooks) that we cannot install on TRD's prod CMS, but on a CMS we control this is the upgrade from 5-minute lag to roughly 1-second lag. The current cron handler is the right shape; only the trigger changes.
-- **Other custom post types.** TRD also has `magazine`, `events`, `dataset`, `sponsored`, `press-releases`, and `advertiser` CPTs. Add a `kind` discriminator to `posts` (or a generalized `content` table) and the schema generalizes without a separate join table per CPT.
-- **Per-request CSP nonces.** Drop `unsafe-inline` from `script-src` by emitting a per-request nonce in the root layout and applying it to the JSON-LD tag. Tightens the CSP without breaking anything.
-- **Better delete detection.** A daily full-ID sweep that diffs the WP `posts?per_page=100&fields=id` IDs against `posts.id` and soft-deletes the missing ones. Two minutes of work; the only reason it is not in v1 is honesty about scope.
-- **OpenTelemetry.** Pino is enough for one process; OTel would be the right move once there is a worker or two and a real dashboard target.
+I deployed on Hobby and was honest about the constraint in the deployment section. Cron is daily, and ad-hoc refresh goes through the protected `/api/sync` endpoint or the `/admin/sync` UI. The system works the same either way; only the schedule differs.
 
-## What I cut on purpose
+### What was intentionally cut
 
-- **Auth (for the site).** A public news mirror has no users to authenticate. The only protected surface is `/admin/sync`, which is one HTTP Basic Auth check.
-- **Mutations.** This is a read-only mirror by design. Any "write" goes through the sync worker.
-- **Comments.** No source data and no point in fabricating one.
-- **A custom design system.** Tailwind plus the minimum custom components needed to ship cleanly. Time saved went into testing, security headers, and this README.
-- **Redis.** Postgres with proper indexes plus Next.js Data Cache covers this scope. Adding Redis would be performance theater.
-- **A query-count debug header.** Tempting; would have meant shipping a number that is inversely correlated with how realistic the workload is. Instead, real measurements live in `docs/measurements/query-counts.md` and the README only quotes the measured ones.
+- **Site-wide auth.** A public news mirror does not need user accounts.
+- **Mutations.** This is a read-only mirror by design; every write goes through the sync worker.
+- **Comments.** No source data and no value in fabricating one.
+- **A custom design system.** I used Tailwind with the minimum custom components needed.
+- **Redis.** Section 7 covers why.
+- **A query-count debug header.** I record real measurements in `docs/measurements/query-counts.md` instead.
 
-## License
+## 13. AI Tooling
 
-MIT, see [`LICENSE`](./LICENSE). Authored as a take-home for The Real Deal; article content is mirrored from therealdeal.com and every article page links back to its canonical URL there.
+I included this section because the assignment allowed AI tools and the role description values AI-assisted development. I want to be specific about how I used it.
+
+### Human-led architecture
+
+I treated AI as an execution and verification system around a human-led design. The architecture, caching model, GraphQL boundary, sync semantics, schema shape, and product tradeoffs in this README are my decisions. Claude Code accelerated the implementation, verification, and documentation work around those decisions; it did not pick them for me.
+
+### Claude Code implementation workflow
+
+I drove Claude Code from a written project plan (`plan.md`) with acceptance criteria, verification commands, and architectural constraints. Each phase had to pass `typecheck`, the relevant test suite, and the build before the next phase started. The full execution trace is in [`docs/orchestration/orchestration-plan.md`](docs/orchestration/orchestration-plan.md), and the `git log --oneline` reads as the wave history.
+
+### Three-agent implementer/auditor/documenter pattern
+
+For each phase I used three roles:
+
+- **Implementer:** translated the plan into code.
+- **Auditor:** reviewed the implementation against the brief, checked edge cases, added tests where they were missing, and forced verification through `typecheck`, `test`, `build`, and Playwright runs.
+- **Documenter:** updated the README, recorded tradeoffs, and committed with a Conventional Commit message.
+
+The pattern was useful because the auditor surfaced real issues during the build, including a Next 16 vs 15 mismatch, draft posts leaking through `post(slug)` before I added a status filter, `'unsafe-eval'` accidentally being included in the production CSP, a JSON-LD `<`-escape gap, a Playwright env loader issue that was silently skipping a security test, and a sector-chip contrast that axe flagged at 4.12:1. Each was fixed inside the same phase.
+
+### Persistent project memory
+
+I maintained an external Obsidian-based knowledge vault outside the repo for planning notes, design references, architecture decisions, and tradeoffs. Indexing it with semantic embeddings let me retrieve prior decisions by meaning rather than filename, so context did not reset between Claude Code sessions. This was mostly a productivity choice; it kept me from re-explaining decisions to a fresh session.
+
+### Design constraints and review process
+
+I did not let the model pick the visual system. I wrote `.impeccable.md` with explicit references (WSJ, NYT, FT) and explicit anti-references (TRD's red branding, generic SaaS landing-page aesthetics, crypto-dashboard glassmorphism), and I checked UI changes against that brief. The goal was a result that read as editorial, not as an AI-styled prototype.
+
+The honest summary: I used Claude Code as a force multiplier on a human-owned design, with verification at every step. The architecture and tradeoffs in this README are explicit so a reviewer can see what was delegated and what was not.
+
+## 14. What I Would Do Next
+
+- **Webhook-based invalidation.** Requires a WP plugin (e.g., WP Webhooks) that I cannot install on TRD's production CMS. On a CMS I control, this is the upgrade from 5-minute or daily lag to near-real-time. The cron handler shape does not change; only the trigger does.
+- **Other custom post types.** TRD has `magazine`, `events`, `dataset`, `sponsored`, `press-releases`, and `advertiser` CPTs. Adding a `kind` discriminator to `posts` (or a generalized `content` table) would generalize the schema without a separate join table per CPT.
+- **Per-request CSP nonces.** Drop `unsafe-inline` from `script-src` by emitting a per-request nonce in the root layout and applying it to the JSON-LD tag.
+- **Delete detection.** A daily full-ID sweep that diffs `posts?per_page=100&fields=id` against the local `posts.id` set and soft-deletes the missing ones. The reason it is not in v1 is honesty about scope, not difficulty.
+- **OpenTelemetry.** Pino is enough for one process; OTel would be the right move once there is more than one worker and a real dashboard target.
+- **Production TTS.** Replace the Web Speech API "Listen" control with an ElevenLabs voice (or a fine-tuned house voice) and cache the MP3 in Vercel Blob keyed by `slug + content_hash`.
+
+## 15. License and Content Attribution
+
+MIT, see [`LICENSE`](./LICENSE). Authored as a take-home for The Real Deal. Article content is mirrored from therealdeal.com, and every article page links back to its canonical URL there.
