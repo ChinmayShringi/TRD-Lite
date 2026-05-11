@@ -13,6 +13,25 @@
 - **Cache:** Postgres is the durable server-side cache for WordPress data; Next.js Data Cache plus tag-based revalidation is the presentation cache on top. The browser is not responsible for freshness. No Redis. About ten lines of cache code in total.
 - **Demo entrypoints:** `/sync-status` (public read-only run history), `/api/graphql` (GraphiQL in dev), `/search?q=manhattan`, `/api/healthz`.
 
+## Beyond the brief
+
+The assignment asked for a homepage with 5+ articles, a basic article page, GraphQL on top of cached WordPress data, and a README. Everything below was shipped on top of that, on the same Vercel free tier, inside the same week:
+
+- **Listen to any article.** A browser-native text-to-speech control on every article page, powered by the Web Speech API. Zero backend cost, zero API key, audio synthesized on the reader's device. Voice priority is locked to natural-sounding US English female voices (Microsoft Jenny Online, Aria Online, Samantha, Google US English Female, Zira); if the device exposes none of them, the control hides itself instead of falling through to the robotic platform default.
+- **Inline YouTube embeds.** TRD articles often embed video. The sanitize-html allowlist permits `<iframe>` for YouTube and the rendered HTML carries the embeds end-to-end so the article page reads the way the editor wrote it.
+- **Infinite scroll on the homepage.** Cursor-based GraphQL pagination + an `IntersectionObserver`-driven loader keeps appending older stories as the reader nears the bottom. The grid never collapses; skeletons hold the layout during the fetch.
+- **Full-text search.** Postgres `tsvector` with a GIN index, `ts_rank` ordering, and a `/search?q=` page with debounced query, highlighted matches, and a results-count chip. Powered by a real GraphQL field (`searchPosts`), not a hand-rolled `LIKE`.
+- **Light + dark theme, first-class.** A pre-hydration script in `app/layout.tsx` reads the saved preference (or `prefers-color-scheme`) before paint, so there is no flash of the wrong theme. Every component reads cleanly in both modes; no manual color overrides.
+- **Responsive across phone, tablet, desktop.** Editorial density preserved across breakpoints; mobile shows a left-drawer masthead with hamburger, search, primary nav, categories, and theme toggle. Desktop shows a full inline nav with categories dropdown and inline search.
+- **Accessibility audited, not assumed.** WCAG-conscious target (working toward 2.1 AA). Playwright + axe-core run in CI on `/` and an article page; serious or critical violations fail the build. Result on production: zero. The "Listen" button is itself an a11y feature.
+- **CI/CD with three gated jobs.** GitHub Actions runs `lint + typecheck + codegen-drift + build`, then `vitest` (40 tests), then `playwright + axe-core` (5 e2e tests), with the test jobs gated on `needs: [static]`. Every push to `main` runs the full suite; the README CI badge is live.
+- **Type-safe GraphQL end to end.** `graphql-codegen` generates operation types from the hand-written SDL; a `pnpm codegen:check` step in CI fails the build if `__generated__/` drifts from the schema. No untyped `any` between resolver and page.
+- **Security headers + CSP.** `next.config.ts` ships Content-Security-Policy, `Referrer-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, plus a Playwright-verified guarantee that `SYNC_TOKEN` never reaches the browser.
+- **Public sync-status + Basic-Auth admin.** `/sync-status` shows the last 20 sync runs without credentials. `/admin/sync` sits behind HTTP Basic Auth (edge-middleware decoded, constant-time compared), with a server-action force-sync that re-reads the token server-side.
+- **JSON-LD `NewsArticle`, sitemap, canonical-back-to-TRD.** Every article emits structured data for SERP and AI summarizers; the canonical points back to therealdeal.com so source credit stays where it belongs.
+- **Skeletons over spinners.** Every awaited fetch (homepage cards, article body, search) paints a layout-faithful skeleton. The grid never jumps, the page never collapses.
+- **Honest operational receipts.** `docs/measurements/query-counts.md` records measured SQL counts per GraphQL operation. `docs/orchestration/orchestration-plan.md` is the wave-by-wave execution trace. The README only quotes numbers that were actually measured.
+
 ## Quick start
 
 ```bash
