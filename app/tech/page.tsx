@@ -1,9 +1,7 @@
 /**
  * "How this was built" colophon. A long-form read explaining the
- * stack, caching layers, sync strategy, and tradeoffs - written for
- * the same reviewers who set the take-home brief, so it answers the
- * questions they actually asked (architecture, caching, AI tooling)
- * with concrete code paths and decisions.
+ * stack, caching layers, sync strategy, and tradeoffs with concrete
+ * code paths and decisions.
  *
  * No GraphQL fetch here: the content is hand-authored editorial copy.
  * Lives at /tech and is linked from the masthead drawer + footer.
@@ -16,7 +14,7 @@ import { SectionRule } from "@/src/components/SectionRule";
 export const metadata: Metadata = {
   title: "How this was built",
   description:
-    "Stack, caching layers, sync strategy, GraphQL design, and tradeoffs behind TRD Lite - the take-home demo for The Real Deal.",
+    "Stack, caching layers, sync strategy, GraphQL design, and tradeoffs behind TRD Lite.",
   alternates: { canonical: "/tech" },
 };
 
@@ -52,15 +50,14 @@ export default function TechPage() {
   return (
     <article className="mx-auto flex w-full max-w-3xl flex-col gap-12 px-4 py-10 sm:px-6 lg:py-14">
       <header className="flex flex-col gap-6">
-        <SectionRule label="Colophon">A take-home build log</SectionRule>
+        <SectionRule label="Colophon">A build log</SectionRule>
         <h1 className="font-heading text-4xl font-bold leading-tight tracking-tight text-foreground sm:text-5xl">
           How this was built
         </h1>
         <p className="max-w-prose font-heading text-lg italic leading-snug text-muted-foreground sm:text-xl">
-          The brief asked for a small news site mirroring The Real Deal&rsquo;s
-          WordPress feed through a custom GraphQL layer, with judgment calls
-          around caching, performance, and architecture. This page walks the
-          decisions that actually got shipped.
+          TRD Lite is a small news site that mirrors The Real Deal&rsquo;s
+          WordPress feed through a custom GraphQL layer. This page walks the
+          architecture, caching, and tradeoff decisions that shipped.
         </p>
         <p className="font-sans text-sm text-muted-foreground">
           <Link
@@ -207,7 +204,7 @@ export default function TechPage() {
               sync-status page
             </Link>{" "}
             reads the last 20 rows; the admin force-sync page (basic-auth
-            gated) lets a reviewer trigger one without waiting on cron.
+            gated) triggers one on demand without waiting on cron.
           </li>
         </ul>
       </section>
@@ -263,10 +260,10 @@ export default function TechPage() {
 
       <section aria-labelledby="ui-extras-heading" className="flex flex-col gap-5">
         <SectionRule label="UI extras" id="ui-extras-heading">
-          Things that were not asked for, and how they are built
+          Beyond the core pages, and how they are built
         </SectionRule>
         <p className="font-heading text-lg leading-relaxed text-foreground">
-          The brief asked for a homepage and an article page. Everything below
+          The core surface is a homepage and an article page. Everything below
           ships on top of that on the same Vercel free tier.
         </p>
         <ul className="ml-6 flex list-disc flex-col gap-3 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
@@ -295,8 +292,8 @@ export default function TechPage() {
           </li>
           <li>
             <strong className="font-semibold">In production we would not ship the browser voice.</strong>{" "}
-            The Web Speech API is the right call for a take-home: free,
-            instant, no vendor lock-in. For a real news product I would
+            The Web Speech API fit this scope: free, instant, no vendor
+            lock-in. For a real news product I would
             replace the synthesis layer with ElevenLabs (or a comparable
             neural-TTS provider) for editorial-grade narration, or fine-tune
             a voice on TRD&rsquo;s house style and cache the resulting audio
@@ -361,9 +358,9 @@ export default function TechPage() {
         <ul className="ml-6 flex list-disc flex-col gap-3 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
           <li>
             <strong className="font-semibold">No code-gen for resolvers.</strong>{" "}
-            Pothos would have given typed resolvers from a builder API; the
-            hand-written SDL was simpler for a take-home and easier to read in
-            review. At a larger surface area, the cost flips.
+            Pothos would have given typed resolvers from a builder API; at
+            this scope the hand-written SDL was simpler and easier to read
+            top-to-bottom. At a larger surface area, the cost flips.
           </li>
           <li>
             <strong className="font-semibold">No static prerender on the homepage.</strong>{" "}
@@ -434,8 +431,9 @@ export default function TechPage() {
         <SectionRule label="What I&rsquo;d do next" id="next-heading" />
         <ul className="ml-6 flex list-disc flex-col gap-2 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
           <li>
-            Tighten CSP per-host (the current <Code>https:</Code> wildcard is a
-            take-home concession).
+            Tighten CSP per-host (the current <Code>https:</Code> wildcard is
+            a deliberate concession for unblocking editorial images across
+            multiple CDN subdomains).
           </li>
           <li>
             Promote the in-process GraphQL fetch to a real network boundary so
