@@ -10,7 +10,7 @@
 - **Live:** <https://trd-lite-takehome.vercel.app>
 - **Stack:** Next.js 15 (App Router) + GraphQL Yoga (hand-written SDL) + DataLoader + Drizzle + Neon Postgres
 - **Sync:** Vercel Cron at `0 6 * * *` calls `/api/sync` daily; the same protected endpoint plus a Basic-Auth-protected `/admin/sync` force-sync UI cover ad-hoc refresh. Production currently mirrors **509 posts**.
-- **Cache:** Postgres is the durable cache; Next.js Data Cache plus tag-based revalidation is the presentation cache. No Redis. About ten lines of cache code in total.
+- **Cache:** Postgres is the durable server-side cache for WordPress data; Next.js Data Cache plus tag-based revalidation is the presentation cache on top. The browser is not responsible for freshness. No Redis. About ten lines of cache code in total.
 - **Demo entrypoints:** `/sync-status` (public read-only run history), `/api/graphql` (GraphiQL in dev), `/search?q=manhattan`, `/api/healthz`.
 
 ## Quick start
@@ -61,40 +61,44 @@ A daily Vercel Cron hits the bearer-protected `/api/sync` route. The handler rea
 | GraphQL client | Plain `fetch` from Server Components | Apollo Client and urql are designed for client-side state. RSC fetches server-side, hydrates as static HTML, and the browser never sees a GraphQL framework. Drops well over 100 KB from the bundle. |
 | Sync model | Cron-based incremental sync via `?modified_after` | Pull-on-request would make the demo a DoS amplifier and let WP outages take the site down. Webhooks would be ideal but require a WP plugin we cannot install on TRD's prod CMS. Cron + cursor + idempotent upsert is the stable middle ground. |
 | N+1 prevention | Drizzle relational queries first, DataLoader as a fallback | List pages issue **1 SQL** for `posts(first:10)` and **1 SQL** for `post(slug)`; `postsByTerm` is **2 SQL** (allowlist + relational). Measured with Drizzle's `logger: true` flag; counts recorded in [`docs/measurements/query-counts.md`](docs/measurements/query-counts.md). DataLoader factories are wired into the per-request context so any future chatty resolver gets batching for free. |
-| Cache layering | Postgres durable + Next.js Data Cache (tag invalidation) + 300s time-based safety net | About ten lines of cache code in the whole app. Five layers conceptually (browser, CDN, Full Route Cache, Data Cache, GraphQL) with tag invalidation as the magic that makes content "appear live" without ever serving an uncached upstream call. |
+| Cache layering | Postgres as the durable server-side cache + Next.js Data Cache (tag invalidation) + 300s time-based safety net | The browser is not the cache. WordPress is touched only by the sync worker; user requests read from Postgres through GraphQL, with Next.js tag-based cache revalidation on top. About ten lines of cache code in the whole app. |
 | No Redis | Skipped on purpose | Neon with proper indexes returns the homepage query in single-digit ms and Next's Data Cache fronts that. Redis would be a fourth tier with no observable benefit and one extra failure mode. |
 | Sync visibility | Public read-only `/sync-status` + Basic-Auth `/admin/sync` | The public page lets a reviewer click one URL to see the system is alive. The admin page carries the only mutation-shaped action (force-sync) and sits behind HTTP Basic Auth via `middleware.ts`. The bearer token is read server-side inside a server action and never reaches the browser, verified by a Playwright check. |
 | Schema shape | Project the parts of WP that matter, keep `raw jsonb` everywhere | 8 to 10 KB per post is trivial at this scale. ACF and yoast field shapes drift; the JSONB safety net lets us add columns later without re-syncing from upstream. |
 
 ## How caching works
 
-Five conceptual layers, drawn from the user inward. The actual code surface is small: about six tagged `fetch` calls and five `revalidateTag` calls.
+There are several caches, in different places. The browser is the least important one. The real caching story is server-side, with Postgres as the durable layer and Next.js/Vercel cache as the presentation layer on top.
 
 ```
+WordPress REST API
+  |  touched ONLY by the sync worker on a cron schedule
+  v
+Sync worker (lib/sync.ts)
+  |  pulls with ?modified_after cursor, sanitizes HTML on write
+  v
+Neon Postgres          <-- the durable server-side cache
+  |  every user request reads from here, never from WordPress
+  v
+GraphQL resolver layer (Drizzle relational queries + per-request DataLoader)
+  v
+Next.js Data Cache     <-- the presentation cache on top of Postgres
+  |  fetch('/api/graphql', { next: { tags, revalidate: 60..300 } })
+  |  revalidateTag(tag) invalidates these on writes from /api/sync
+  v
+Next.js Full Route Cache + Vercel CDN
+  |  static generation for /, /sector/[slug], /article/[slug]; 300s safety net
+  v
 Browser
-  |  HTTP Cache-Control on static routes (s-maxage / stale-while-revalidate)
-  v
-Vercel Edge / CDN
-  |  honors Cache-Control; serves stale during regeneration
-  v
-Next.js Full Route Cache
-  |  static generation for /, /sector/[slug], /article/[slug]
-  |  revalidate: 300s safety net
-  v
-Next.js Data Cache (the fetch wrapper around GraphQL)
-  |  fetch('/api/graphql', { next: { tags, revalidate: 300 } })
-  |  revalidateTag(tag) invalidates these on writes
-  v
-GraphQL resolver layer
-  |  per-request DataLoader factories (author, media, term)
-  |  Drizzle relational queries on list pages keep query count bounded
-  v
-Drizzle / Postgres
-  |  posts_published_at_idx, posts_status_published_at_idx, terms_taxonomy_slug_unique
-  |  warm queries return in single-digit ms
-  v
-WordPress REST  (NEVER hit on user requests; only the sync worker touches it)
+  |  prefetched <Link> targets and standard HTTP asset cache
+  |  not responsible for content freshness
 ```
+
+**Where the cache actually lives.**
+
+- **Postgres is the durable cache.** WordPress is the source of truth; Neon Postgres is the served-from store. The frontend never calls WordPress directly. This is what satisfies the brief's "store/cache the WordPress data locally" requirement, and it is what keeps user requests fast and isolates the app from upstream WP latency or outages.
+- **Next.js Data Cache + tag invalidation is the presentation cache.** Server components call `fetch('/api/graphql', { next: { tags, revalidate } })`, so warm requests skip the resolver and the DB entirely for the revalidate window. After every successful sync, `/api/sync` fires `revalidateTag('homepage')`, `post:{slug}`, and `sector:{slug}` so new stories appear within seconds of the cron tick, not at the 300-second timer.
+- **The browser is not in charge of freshness.** It may cache prefetched route payloads and static assets via standard HTTP headers, but no content invariant depends on it.
 
 ### Tag taxonomy
 

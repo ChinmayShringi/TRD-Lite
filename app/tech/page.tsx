@@ -105,24 +105,33 @@ export default function TechPage() {
           The brief&rsquo;s headline question
         </SectionRule>
         <p className="font-heading text-lg leading-relaxed text-foreground">
-          Caching is layered, not single-source. Each layer has a different
-          cost-to-freshness tradeoff, and they compose:
+          There are several caches, and they live in different places. The
+          browser is the least important one. The real story is server-side:
+          Postgres is the durable cache, and the Next.js Data Cache is the
+          presentation cache on top.
+        </p>
+        <p className="font-heading text-base leading-relaxed text-muted-foreground">
+          WordPress API &rarr; sync worker &rarr; Neon Postgres &rarr; GraphQL
+          API &rarr; Next.js / Vercel cache &rarr; browser
         </p>
         <ol className="ml-6 flex list-decimal flex-col gap-3 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
           <li>
-            <strong className="font-semibold">Postgres mirror.</strong> The
-            durable cache. WordPress is the source of truth; Neon Postgres is
-            the served-from store. The frontend never calls WordPress
-            directly, which keeps page requests fast and protects the app
-            from upstream API latency or temporary WordPress failures.
+            <strong className="font-semibold">Postgres is the durable cache.</strong>{" "}
+            WordPress is the source of truth; Neon Postgres is the
+            served-from store. The sync worker is the only thing that ever
+            touches WordPress; user page requests read from Postgres through
+            GraphQL. That is what satisfies the brief&rsquo;s &ldquo;store /
+            cache the WordPress data&rdquo; requirement, and it is what
+            keeps requests fast and protects the app from upstream API
+            latency or temporary WordPress failures.
           </li>
           <li>
-            <strong className="font-semibold">Next.js Data Cache.</strong>{" "}
+            <strong className="font-semibold">Next.js Data Cache is the presentation cache.</strong>{" "}
             Every server-component GraphQL call uses{" "}
             <Code>fetch(&hellip;, &#123; next: &#123; tags, revalidate: 60-300 &#125; &#125;)</Code>.
-            Reads are served from Vercel&rsquo;s edge data cache for the
-            revalidate window without re-running the resolver or hitting
-            Postgres.
+            Warm requests are served from Vercel&rsquo;s server-side data
+            cache without re-running the resolver or hitting Postgres. This
+            is platform-side caching, not browser caching.
           </li>
           <li>
             <strong className="font-semibold">Tag invalidation on write.</strong>{" "}
@@ -140,9 +149,11 @@ export default function TechPage() {
             cover the long tail rather than carry the load.
           </li>
           <li>
-            <strong className="font-semibold">Browser layer.</strong> Next
-            prefetches <Code>&lt;Link&gt;</Code> targets in the viewport, so
-            navigation feels instant even though every page is dynamic.
+            <strong className="font-semibold">Browser layer (least important).</strong>{" "}
+            The browser may cache prefetched <Code>&lt;Link&gt;</Code>{" "}
+            payloads and static assets via standard HTTP headers, but it is
+            not responsible for content freshness. Pull the plug on the
+            browser cache and nothing about the architecture changes.
           </li>
         </ol>
       </section>
