@@ -15,39 +15,34 @@ I wrote this README in first-person because I want the reviewer to see how I thi
 - **Cache:** Postgres is the durable cache for WordPress content; the Next.js Data Cache with tag-based revalidation is the presentation cache on top.
 - **Demo entrypoints:** `/sync-status`, `/api/graphql`, `/search?q=manhattan`, `/api/healthz`.
 
-## 2. Assignment Requirements Coverage
+A quick map of where each piece of the brief lives:
 
-Before going into deeper engineering, I wanted to map each bullet of the assignment to where it lives in this submission.
+- **Fetch content from the WordPress API.** Typed client at `src/lib/wp-client.ts` wraps `https://therealdeal.com/wp-json/wp/v2/posts`. It passes `?_embed=1` so author, media, and term data come back in one round trip, paginates with `?modified_after` for incremental pulls, and uses exponential backoff on 5xx responses. The sync orchestrator at `src/lib/sync.ts` is the only thing in the codebase that calls WordPress. User requests never touch it.
+- **Store/cache the data locally in a database.** Neon Postgres. Schema and migrations in `src/db/schema.ts` and `drizzle/`; tables I projected from WP: `posts`, `authors`, `media`, `terms`, `post_terms`, `sync_runs`. Each row keeps a `raw jsonb` column for the original WP payload so I can add columns later without re-syncing. The sync worker upserts idempotently in dependency order, one Drizzle transaction per 100-post page.
+- **Expose the data through a GraphQL API.** GraphQL Yoga mounted at `/api/graphql`. Hand-written SDL in `src/graphql/schema.ts`. Resolvers are thin wrappers over Drizzle relational queries, with a per-request DataLoader context as a fallback for chatty resolvers. Operations: `posts`, `post`, `postsByTerm`, `searchPosts`, `syncStatus`. Cursor pagination is base64-encoded `publishedAt|id`. GraphiQL is on in development.
+- **Use that GraphQL API to power the frontend.** Every page in `app/` fetches through `src/lib/graphql-fetch.ts`, which calls `/api/graphql` with `next: { tags, revalidate }`. I added a guard that prevents `app/` and `src/components/` from importing anything under `src/db/`, so the frontend cannot bypass the GraphQL layer. No Apollo Client or urql in the bundle; React Server Components do the fetching server-side.
+- **Homepage with at least 5 articles.** `app/page.tsx` renders a hero plus a 12-card grid, then keeps appending older stories on scroll using cursor-based pagination from the same GraphQL field.
+- **Basic article page.** `app/article/[slug]/page.tsx` is a semantic `<article>` with header, headline, byline, `<time datetime>`, featured image, sanitized body HTML, and related stories from the same primary sector. A small "Listen" control reads the article aloud through the Web Speech API.
+- **README with architecture, tradeoffs, caching, AI usage.** Architecture in section 4, data model in section 5, caching and sync in section 6, tradeoffs in section 11, AI tooling in section 12.
 
-### Fetch content from the WordPress API
+## Table of contents
 
-I wrote a typed client at `src/lib/wp-client.ts` that wraps `https://therealdeal.com/wp-json/wp/v2/posts`. It always passes `?_embed=1` so author, media, and term data come back in one round trip, paginates with `?modified_after` for incremental pulls, and uses exponential backoff on 5xx responses. The sync orchestrator at `src/lib/sync.ts` is the only thing in the codebase that ever calls WordPress. User requests never touch it.
+1. [Overview](#1-overview)
+2. [Live Demo and Repository](#2-live-demo-and-repository)
+3. [Quick Start](#3-quick-start)
+4. [Architecture](#4-architecture)
+5. [Data Model](#5-data-model)
+6. [Caching and Data Syncing](#6-caching-and-data-syncing)
+7. [GraphQL API](#7-graphql-api)
+8. [Frontend Decisions](#8-frontend-decisions)
+9. [Performance, Security, Accessibility, and SEO](#9-performance-security-accessibility-and-seo)
+10. [Testing and CI/CD](#10-testing-and-cicd)
+11. [Tradeoffs and Decisions](#11-tradeoffs-and-decisions)
+12. [AI Tooling](#12-ai-tooling)
+13. [What I Would Do Next](#13-what-i-would-do-next)
+14. [License and Content Attribution](#14-license-and-content-attribution)
 
-### Store/cache the data locally in a database
-
-I chose Neon Postgres as the durable local store. Schema and migrations live in `src/db/schema.ts` and `drizzle/`. The tables I projected from the WP shape: `posts`, `authors`, `media`, `terms`, `post_terms`, and `sync_runs`. Each row keeps a `raw jsonb` column for the original WP payload so I can add columns later without re-syncing. The sync worker upserts idempotently in dependency order (media, authors, terms, posts, post_terms), one Drizzle transaction per 100-post page.
-
-### Expose the data through a GraphQL API
-
-I implemented the GraphQL layer with GraphQL Yoga, mounted at `/api/graphql`. The schema is a hand-written SDL string in `src/graphql/schema.ts`. Resolvers are thin wrappers over Drizzle relational queries, with a per-request DataLoader context in `src/graphql/loaders.ts` as a fallback for any future chatty resolver. Operations: `posts`, `post`, `postsByTerm`, `searchPosts`, `syncStatus`. Cursor pagination is base64-encoded `publishedAt|id`. GraphiQL is enabled in development at `/api/graphql`.
-
-### Use that GraphQL API to power the frontend
-
-Every page in `app/` fetches through `src/lib/graphql-fetch.ts`, which calls `/api/graphql` with `next: { tags, revalidate }`. I added a lint-style guard that prevents `app/` and `src/components/` from importing anything under `src/db/`, so the frontend cannot bypass the GraphQL layer. There is no Apollo Client or urql in the bundle; React Server Components do the fetching server-side and hydrate as static HTML.
-
-### Homepage with at least 5 articles
-
-`app/page.tsx` renders a hero article plus a 12-card grid, then keeps appending older stories on scroll using a cursor-based GraphQL query. The minimum is 5, but I implemented infinite scroll because it felt closer to what an editorial product would ship.
-
-### Basic article page
-
-`app/article/[slug]/page.tsx` renders a semantic `<article>` with `<header>`, `<h1>`, byline, `<time datetime>`, featured image, sanitized body HTML, and related stories from the same primary sector. There is also a small "Listen" control that reads the article aloud through the Web Speech API (zero backend cost).
-
-### README, architecture, tradeoffs, caching, AI usage
-
-The rest of this README covers those. Architecture is in section 5, the data model in section 6, caching and sync in section 7, tradeoffs in section 12, and AI usage in section 13.
-
-## 3. Live Demo and Repository
+## 2. Live Demo and Repository
 
 - **Live URL:** <https://trd-lite-takehome.vercel.app>
 - **GitHub:** <https://github.com/ChinmayShringi/TRD-Lite>
@@ -55,7 +50,7 @@ The rest of this README covers those. Architecture is in section 5, the data mod
 - **GraphiQL (dev only):** `http://localhost:3000/api/graphql`
 - **Public sync status:** <https://trd-lite-takehome.vercel.app/sync-status>
 
-## 4. Quick Start
+## 3. Quick Start
 
 ```bash
 git clone git@github.com:ChinmayShringi/TRD-Lite.git
@@ -75,7 +70,7 @@ pnpm dev                           # http://localhost:3000
 
 Tests: `pnpm test` (Vitest unit + integration), `pnpm test:e2e` (Playwright + axe-core).
 
-## 5. Architecture
+## 4. Architecture
 
 ### Data flow
 
@@ -107,7 +102,7 @@ I picked GraphQL Yoga over Apollo Server because Yoga is a thin handler that dro
 
 The brief said "store/cache the WordPress data however you think makes sense." I chose Postgres because it gives me transactional writes, indexes for the homepage and slug lookups, and a clean place to keep an operational log (`sync_runs`). My goal was to avoid calling WordPress during user requests while still keeping the frontend backed by real synced content. SQLite would have worked locally but does not fit the Vercel-plus-managed-DB deploy story, and an in-memory cache would not survive a function cold start.
 
-## 6. Data Model
+## 5. Data Model
 
 ### Posts
 
@@ -133,7 +128,7 @@ WP has multiple taxonomies (`category`, `sector`, `market`, `tag`). I normalized
 
 ACF and Yoast field shapes drift across WordPress versions, and I did not want to re-sync hundreds of posts if I later decided to expose a new field. Keeping `raw jsonb` adds maybe 8 to 10 KB per row, which is trivial at this scale, and gives me a recovery path if I miss a column.
 
-## 7. Caching and Data Syncing
+## 6. Caching and Data Syncing
 
 ### Postgres as the durable WordPress cache
 
@@ -199,7 +194,7 @@ I considered Redis and chose not to add it. Postgres with proper indexes returns
 
 One thing I did not solve in v1: deletes are invisible to a `modified_after` sweep because the WP endpoint just stops returning the row. I called this out in section 14.
 
-## 8. GraphQL API
+## 7. GraphQL API
 
 ### Schema overview
 
@@ -264,7 +259,7 @@ Measured with Drizzle's `logger: true` flag and recorded in [`docs/measurements/
 
 `postsByTerm` issues two statements (a taxonomy allowlist plus the main relational query) because keeping the relational hydration intact requires a top-level table-only `findMany`. I left DataLoader factories in the per-request context as a fallback so any future resolver that bypasses the relational query still gets batching.
 
-## 9. Frontend Decisions
+## 8. Frontend Decisions
 
 ### Homepage
 
@@ -286,7 +281,7 @@ Measured with Drizzle's `logger: true` flag and recorded in [`docs/measurements/
 
 I constrained the visual system with `.impeccable.md` so the UI did not drift into generic SaaS aesthetics. The references I aimed at are WSJ, NYT, and FT; the anti-references are TRD's red sans-serif brand, gradient marketing pages, and crypto-dashboard glassmorphism. I used Source Serif 4 for headlines, Inter for UI, and a calm blue accent (`oklch(0.55 0.20 245)`) used only on interactive surfaces. Light and dark are both first-class; a pre-hydration script applies the saved preference before paint to avoid theme flash.
 
-## 10. Performance, Security, Accessibility, and SEO
+## 9. Performance, Security, Accessibility, and SEO
 
 ### Performance
 
@@ -320,7 +315,7 @@ I also set Content-Security-Policy, `Referrer-Policy`, `X-Content-Type-Options`,
 - `sitemap.xml` is generated from the `posts` table.
 - `robots.txt` sets `noindex` for the demo so it cannot be mistaken for the source.
 
-## 11. Testing and CI/CD
+## 10. Testing and CI/CD
 
 ### Unit tests
 
@@ -354,7 +349,7 @@ I gated `test` and `e2e` on `needs: [static]` so they do not race past obvious t
 
 Vercel's GitHub integration auto-deploys `main` to production once CI is green; preview URLs are wired up on PRs. The project is on the Hobby tier, which caps cron at one execution per day, so my schedule is `0 6 * * *`. On a Pro upgrade I would switch to `*/5 * * * *`; the rest of the cron handler does not change.
 
-## 12. Tradeoffs and Decisions
+## 11. Tradeoffs and Decisions
 
 ### Single app vs separate backend
 
@@ -389,7 +384,7 @@ I deployed on Hobby and was honest about the constraint in the deployment sectio
 - **Redis.** Section 7 covers why.
 - **A query-count debug header.** I record real measurements in `docs/measurements/query-counts.md` instead.
 
-## 13. AI Tooling
+## 12. AI Tooling
 
 I included this section because the assignment allowed AI tools and the role description values AI-assisted development. I want to be specific about how I used it.
 
@@ -421,7 +416,7 @@ I did not let the model pick the visual system. I wrote `.impeccable.md` with ex
 
 The honest summary: I used Claude Code as a force multiplier on a human-owned design, with verification at every step. The architecture and tradeoffs in this README are explicit so a reviewer can see what was delegated and what was not.
 
-## 14. What I Would Do Next
+## 13. What I Would Do Next
 
 - **Webhook-based invalidation.** Requires a WP plugin (e.g., WP Webhooks) that I cannot install on TRD's production CMS. On a CMS I control, this is the upgrade from 5-minute or daily lag to near-real-time. The cron handler shape does not change; only the trigger does.
 - **Other custom post types.** TRD has `magazine`, `events`, `dataset`, `sponsored`, `press-releases`, and `advertiser` CPTs. Adding a `kind` discriminator to `posts` (or a generalized `content` table) would generalize the schema without a separate join table per CPT.
@@ -430,6 +425,6 @@ The honest summary: I used Claude Code as a force multiplier on a human-owned de
 - **OpenTelemetry.** Pino is enough for one process; OTel would be the right move once there is more than one worker and a real dashboard target.
 - **Production TTS.** Replace the Web Speech API "Listen" control with an ElevenLabs voice (or a fine-tuned house voice) and cache the MP3 in Vercel Blob keyed by `slug + content_hash`.
 
-## 15. License and Content Attribution
+## 14. License and Content Attribution
 
 MIT, see [`LICENSE`](./LICENSE). Authored as a take-home for The Real Deal. Article content is mirrored from therealdeal.com, and every article page links back to its canonical URL there.
