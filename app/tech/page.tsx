@@ -99,7 +99,7 @@ export default function TechPage() {
 
       <section aria-labelledby="caching-heading" className="flex flex-col gap-5">
         <SectionRule label="Caching" id="caching-heading">
-          The brief&rsquo;s headline question
+          Where freshness actually lives
         </SectionRule>
         <p className="font-heading text-lg leading-relaxed text-foreground">
           There are several caches, and they live in different places. The
@@ -117,10 +117,8 @@ export default function TechPage() {
             WordPress is the source of truth; Neon Postgres is the
             served-from store. The sync worker is the only thing that ever
             touches WordPress; user page requests read from Postgres through
-            GraphQL. That is what satisfies the brief&rsquo;s &ldquo;store /
-            cache the WordPress data&rdquo; requirement, and it is what
-            keeps requests fast and protects the app from upstream API
-            latency or temporary WordPress failures.
+            GraphQL. This keeps requests fast and protects the app from
+            upstream API latency or temporary WordPress failures.
           </li>
           <li>
             <strong className="font-semibold">Next.js Data Cache is the presentation cache.</strong>{" "}
