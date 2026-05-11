@@ -7,7 +7,7 @@
 
 This is my take-home submission for The Real Deal. I built a small news site that mirrors articles from TRD's WordPress REST endpoint, stores them in Postgres, exposes them through my own GraphQL API, and renders them with Next.js. Production currently mirrors 509 posts.
 
-I wrote this README in first-person because I want the reviewer to see how I think about the tradeoffs, not just what got shipped. The headline pieces:
+The headline pieces:
 
 - **Live:** <https://trd-lite-takehome.vercel.app>
 - **Stack:** Next.js 15 (App Router), GraphQL Yoga with hand-written SDL, DataLoader, Drizzle, Neon Postgres.
@@ -15,7 +15,7 @@ I wrote this README in first-person because I want the reviewer to see how I thi
 - **Cache:** Postgres is the durable cache for WordPress content; the Next.js Data Cache with tag-based revalidation is the presentation cache on top.
 - **Demo entrypoints:** `/sync-status`, `/api/graphql`, `/search?q=manhattan`, `/api/healthz`.
 
-Below I walk through each piece of the brief and where it lives in the code, so a reviewer can trace any requirement back to a file.
+Below I walk through each piece of the brief and where it lives in the code.
 
 ### Fetch content from the WordPress API
 
@@ -112,11 +112,11 @@ A daily Vercel Cron hits the bearer-protected `/api/sync` route. The handler rea
 
 ### Why a single Next.js app
 
-I kept the GraphQL layer and the Next.js frontend in one repo and one deploy. The tradeoff: this is simpler to run and review for a take-home, but it does mean the API and frontend share a process and a release cadence. To make the future split easy, I folder-isolated the GraphQL code under `src/graphql/` and forbade frontend code from importing `src/db/` directly. Lifting `src/graphql/` into a separate Hono service later would be a few hours of work instead of a rewrite.
+I kept the GraphQL layer and the Next.js frontend in one repo and one deploy. The tradeoff: this is simpler to run at this scope, but it does mean the API and frontend share a process and a release cadence. To make the future split easy, I folder-isolated the GraphQL code under `src/graphql/` and forbade frontend code from importing `src/db/` directly. Lifting `src/graphql/` into a separate Hono service later would be a few hours of work instead of a rewrite.
 
 ### Why GraphQL Yoga
 
-I picked GraphQL Yoga over Apollo Server because Yoga is a thin handler that drops into a Next.js route. I also chose a hand-written SDL with `makeExecutableSchema` instead of a code-first builder like Pothos. The Pothos Drizzle plugin was in beta when I started, and for a take-home I preferred a setup the reviewer can read top-to-bottom without learning a builder DSL. I add type safety on top with `graphql-codegen` and a `codegen:check` step in CI.
+I picked GraphQL Yoga over Apollo Server because Yoga is a thin handler that drops into a Next.js route. I also chose a hand-written SDL with `makeExecutableSchema` instead of a code-first builder like Pothos. The Pothos Drizzle plugin was in beta when I started, and I preferred a setup that reads top-to-bottom without learning a builder DSL. I add type safety on top with `graphql-codegen` and a `codegen:check` step in CI.
 
 ### Why Postgres as the durable cache
 
@@ -295,7 +295,7 @@ Measured with Drizzle's `logger: true` flag and recorded in [`docs/measurements/
 
 ### Sync status page
 
-`/sync-status` is a public read-only view of the last 20 sync runs (status, posts upserted, started/finished timestamps, errors). I included it because the simplest way for a reviewer to confirm the system is alive is one click. `/admin/sync` is the Basic-Auth-protected force-sync UI for ad-hoc refresh.
+`/sync-status` is a public read-only view of the last 20 sync runs (status, posts upserted, started/finished timestamps, errors). It is a one-click way to confirm the system is alive. `/admin/sync` is the Basic-Auth-protected force-sync UI for ad-hoc refresh.
 
 ### Editorial design direction
 
@@ -373,7 +373,7 @@ Vercel's GitHub integration auto-deploys `main` to production once CI is green; 
 
 ### Single app vs separate backend
 
-I shipped one Next.js app instead of splitting the GraphQL layer into its own service. The tradeoff is that the API and the frontend share a deploy cadence, and any frontend-only change re-deploys the API too. I accepted that for a take-home and folder-isolated `src/graphql/` so the future split is cheap.
+I shipped one Next.js app instead of splitting the GraphQL layer into its own service. The tradeoff is that the API and the frontend share a deploy cadence, and any frontend-only change re-deploys the API too. I accepted that at this scope and folder-isolated `src/graphql/` so the future split is cheap.
 
 ### Drizzle vs Prisma
 
@@ -381,7 +381,7 @@ I chose Drizzle because it works cleanly with Neon's HTTP and WebSocket drivers 
 
 ### Hand-written SDL vs Pothos
 
-I picked hand-written SDL because the schema is small, the resolvers are thin, and the reviewer can read the whole API in two files. Pothos with its Drizzle plugin would have generated some of this for me, but it was in beta when I started, and for a take-home I preferred a setup that is easy to audit over one that is clever.
+I picked hand-written SDL because the schema is small, the resolvers are thin, and the whole API lives in two files. Pothos with its Drizzle plugin would have generated some of this for me, but it was in beta when I started, and I preferred a setup that is easy to audit over one that is clever.
 
 ### Server Components + fetch vs Apollo Client
 
@@ -406,7 +406,7 @@ I deployed on Hobby and was honest about the constraint in the deployment sectio
 
 ## 12. AI Tooling
 
-I included this section because the assignment allowed AI tools and the role description values AI-assisted development. I want to be specific about how I used it.
+Here is how I used AI on this project.
 
 ### Human-led architecture
 
@@ -434,7 +434,7 @@ I maintained an external Obsidian-based knowledge vault outside the repo for pla
 
 I did not let the model pick the visual system. I wrote `.impeccable.md` with explicit references (WSJ, NYT, FT) and explicit anti-references (TRD's red branding, generic SaaS landing-page aesthetics, crypto-dashboard glassmorphism), and I checked UI changes against that brief. The goal was a result that read as editorial, not as an AI-styled prototype.
 
-The honest summary: I used Claude Code as a force multiplier on a human-owned design, with verification at every step. The architecture and tradeoffs in this README are explicit so a reviewer can see what was delegated and what was not.
+In summary, I used Claude Code as a force multiplier on a human-owned design, with verification at every step. The architecture and tradeoffs in this README are explicit about what was delegated and what was not.
 
 ## 13. What I Would Do Next
 
