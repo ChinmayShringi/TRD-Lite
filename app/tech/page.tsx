@@ -261,6 +261,99 @@ export default function TechPage() {
         </ul>
       </section>
 
+      <section aria-labelledby="ui-extras-heading" className="flex flex-col gap-5">
+        <SectionRule label="UI extras" id="ui-extras-heading">
+          Things that were not asked for, and how they are built
+        </SectionRule>
+        <p className="font-heading text-lg leading-relaxed text-foreground">
+          The brief asked for a homepage and an article page. Everything below
+          ships on top of that on the same Vercel free tier.
+        </p>
+        <ul className="ml-6 flex list-disc flex-col gap-3 font-heading text-base leading-relaxed text-foreground marker:text-muted-foreground">
+          <li>
+            <strong className="font-semibold">Listen to any article.</strong>{" "}
+            A browser-native &ldquo;Listen&rdquo; control on every article
+            page, implemented with the Web Speech API
+            (<Code>window.speechSynthesis</Code> +{" "}
+            <Code>SpeechSynthesisUtterance</Code>). The sanitized article HTML
+            is converted to speech-friendly text with paragraph breaks
+            preserved, then chunked paragraph-by-paragraph (with a 600-char
+            sentence-fallback split) so Chrome&rsquo;s per-utterance length
+            cap never truncates the read. Voice selection is asynchronous
+            (Chromium returns an empty list on the first{" "}
+            <Code>getVoices()</Code> call), so a promise wraps{" "}
+            <Code>onvoiceschanged</Code> and a three-state availability
+            pattern (<Code>null</Code> = resolving, <Code>false</Code> =
+            hide, <Code>true</Code> = show) prevents the button from
+            flashing in and out. Voice priority is locked to natural-sounding
+            US English female voices (Microsoft Jenny Online, Aria Online,
+            Samantha, Google US English Female, Zira); if the device exposes
+            none of them, the control hides itself instead of falling through
+            to the robotic platform default. Zero backend cost, zero API key,
+            zero per-character billing, audio synthesized on the
+            reader&rsquo;s device.
+          </li>
+          <li>
+            <strong className="font-semibold">In production we would not ship the browser voice.</strong>{" "}
+            The Web Speech API is the right call for a take-home: free,
+            instant, no vendor lock-in. For a real news product I would
+            replace the synthesis layer with ElevenLabs (or a comparable
+            neural-TTS provider) for editorial-grade narration, or fine-tune
+            a voice on TRD&rsquo;s house style and cache the resulting audio
+            in Vercel Blob keyed by{" "}
+            <Code>post.slug + content_hash</Code>. The UI surface stays the
+            same; only the audio source swaps from on-device synthesis to a
+            CDN-delivered MP3. Per-article TTS cost on ElevenLabs at current
+            pricing lands around the cost of a single editorial image, and
+            the result is indistinguishable from a human reader.
+          </li>
+          <li>
+            <strong className="font-semibold">Inline YouTube embeds.</strong>{" "}
+            TRD articles routinely embed video. The{" "}
+            <Code>sanitize-html</Code> allowlist permits <Code>&lt;iframe&gt;</Code>{" "}
+            with a strict src-host check for YouTube, so the rendered article
+            HTML carries the embed end-to-end and the page reads the way the
+            editor wrote it.
+          </li>
+          <li>
+            <strong className="font-semibold">Infinite scroll on the homepage.</strong>{" "}
+            Cursor-based GraphQL pagination plus an{" "}
+            <Code>IntersectionObserver</Code>-driven loader keeps appending
+            older stories as the reader nears the bottom. Skeletons hold the
+            grid layout during the fetch so the page never jumps.
+          </li>
+          <li>
+            <strong className="font-semibold">Full-text search.</strong>{" "}
+            Postgres <Code>tsvector</Code> with a GIN index, <Code>ts_rank</Code>{" "}
+            ordering, debounced query, highlighted matches, and a results-count
+            chip. Powered by a real GraphQL field (<Code>searchPosts</Code>),
+            not a hand-rolled <Code>LIKE</Code>.
+          </li>
+          <li>
+            <strong className="font-semibold">Light + dark, first-class.</strong>{" "}
+            A pre-hydration script in <Code>app/layout.tsx</Code> applies the
+            saved preference (or <Code>prefers-color-scheme</Code>) before
+            paint, so there is no flash of the wrong theme. Every component
+            reads cleanly in both modes; the toggle is a single icon in the
+            masthead and in the mobile drawer.
+          </li>
+          <li>
+            <strong className="font-semibold">Responsive across phone, tablet, desktop.</strong>{" "}
+            Editorial density preserved across breakpoints. Mobile shows a
+            left-drawer masthead with hamburger, search, primary nav,
+            categories, and theme toggle. Desktop shows a full inline nav
+            with a categories dropdown and inline search affordance.
+          </li>
+          <li>
+            <strong className="font-semibold">Skeletons over spinners.</strong>{" "}
+            Every awaited fetch (homepage cards, article body, search) paints
+            a layout-faithful skeleton via{" "}
+            <Code>animate-pulse</Code>. The grid never collapses, the page
+            never jumps.
+          </li>
+        </ul>
+      </section>
+
       <section aria-labelledby="tradeoffs-heading" className="flex flex-col gap-5">
         <SectionRule label="Tradeoffs" id="tradeoffs-heading">
           What got cut, and why
